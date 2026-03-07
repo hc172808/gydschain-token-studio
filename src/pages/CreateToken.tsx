@@ -23,6 +23,8 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
   const [deployed, setDeployed] = useState<DeployedToken | null>(null);
   const [revokeFreeze, setRevokeFreeze] = useState(true);
   const [revokeMint, setRevokeMint] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string>("");
   const [form, setForm] = useState<TokenMetadata>({
     name: "",
     symbol: "",
@@ -35,13 +37,30 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
     telegram: "",
   });
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid image file (PNG, JPG, etc.)");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB");
+      return;
+    }
+    setLogoFile(file);
+    const url = URL.createObjectURL(file);
+    setLogoPreview(url);
+    updateField("logoUrl", url);
+  };
+
   const updateField = (key: keyof TokenMetadata, value: string | number) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const canProceed = () => {
     if (step === 0) return form.name.trim().length >= 2 && form.symbol.trim().length >= 2 && form.symbol.trim().length <= 8;
-    if (step === 1) return form.description.trim().length > 0 && Number(form.totalSupply) > 0;
+    if (step === 1) return form.description.trim().length > 0 && Number(form.totalSupply) > 0 && logoFile !== null;
     return true;
   };
 
@@ -119,12 +138,31 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
                   <Textarea value={form.description} onChange={(e) => updateField("description", e.target.value)} placeholder="Describe your token..." className="mt-1.5 bg-muted/50 border-border/50 min-h-[100px]" maxLength={500} />
                 </div>
                 <div>
-                  <Label>Logo URL</Label>
-                  <div className="flex gap-2 mt-1.5">
-                    <Input value={form.logoUrl} onChange={(e) => updateField("logoUrl", e.target.value)} placeholder="https://..." className="bg-muted/50 border-border/50" />
-                    <Button variant="outline" size="icon" className="shrink-0 border-border/50">
-                      <Upload className="w-4 h-4" />
-                    </Button>
+                  <Label>Token Logo (PNG/JPG) *</Label>
+                  <div className="mt-1.5">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                      id="logo-upload"
+                    />
+                    <label
+                      htmlFor="logo-upload"
+                      className="flex items-center gap-3 p-4 rounded-xl border border-dashed border-border/50 bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-all cursor-pointer"
+                    >
+                      {logoPreview ? (
+                        <img src={logoPreview} alt="Token logo" className="w-14 h-14 rounded-xl object-cover ring-2 ring-primary/30" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-xl bg-muted/50 flex items-center justify-center">
+                          <Upload className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{logoFile ? logoFile.name : "Click to upload logo"}</p>
+                        <p className="text-xs text-muted-foreground">{logoFile ? `${(logoFile.size / 1024).toFixed(1)} KB` : "PNG, JPG or WebP · Max 5MB"}</p>
+                      </div>
+                    </label>
                   </div>
                 </div>
                 <div>
