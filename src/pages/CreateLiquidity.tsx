@@ -1,0 +1,172 @@
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Droplets, ArrowDown, Info, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { toast } from "sonner";
+import { activeConfig } from "@/lib/blockchain/config";
+import type { DeployedToken } from "@/lib/blockchain/types";
+
+interface CreateLiquidityPageProps {
+  tokens: DeployedToken[];
+  isWalletConnected: boolean;
+  onConnectWallet: () => void;
+}
+
+const FEE_OPTIONS = [
+  { value: "0.01", label: "0.01%" },
+  { value: "0.05", label: "0.05%" },
+  { value: "0.25", label: "0.25% (Recommended)" },
+  { value: "1.00", label: "1.00%" },
+];
+
+const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: CreateLiquidityPageProps) => {
+  const [selectedToken, setSelectedToken] = useState("");
+  const [tokenAmount, setTokenAmount] = useState("");
+  const [gydsAmount, setGydsAmount] = useState("");
+  const [feeTier, setFeeTier] = useState("0.25");
+  const [supplyPercent, setSupplyPercent] = useState([95]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [poolType, setPoolType] = useState<"cpmm" | "amm-v4">("cpmm");
+
+  const selectedTokenData = tokens.find((t) => t.contractAddress === selectedToken);
+
+  const handleSupplyChange = (val: number[]) => {
+    setSupplyPercent(val);
+    if (selectedTokenData) {
+      const amount = Math.floor((Number(selectedTokenData.currentSupply) * val[0]) / 100);
+      setTokenAmount(String(amount));
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!isWalletConnected) { onConnectWallet(); return; }
+    setIsCreating(true);
+    await new Promise((r) => setTimeout(r, 3000));
+    setIsCreating(false);
+    toast.success("Liquidity pool created successfully!");
+  };
+
+  if (!isWalletConnected) {
+    return (
+      <div className="min-h-screen bg-background pt-24 flex items-center justify-center">
+        <div className="glass-card p-10 text-center max-w-md">
+          <Droplets className="w-12 h-12 text-primary mx-auto mb-4" />
+          <h2 className="text-2xl font-heading font-bold mb-3">Connect Your Wallet</h2>
+          <p className="text-muted-foreground mb-6">Connect a wallet to create a liquidity pool.</p>
+          <Button onClick={onConnectWallet} className="btn-gradient">Connect Wallet</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background pt-24 pb-16">
+      <div className="container mx-auto px-4 max-w-xl">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <h1 className="text-3xl font-heading font-bold mb-2">
+            Create <span className="gradient-text">Liquidity Pool</span>
+          </h1>
+          <p className="text-muted-foreground mb-8">Initialize a CPMM or AMM v4 pool on {activeConfig.networkName}</p>
+
+          <div className="glass-card p-6 space-y-6">
+            {/* Pool Type */}
+            <div>
+              <Label>Pool Type</Label>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                {(["cpmm", "amm-v4"] as const).map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setPoolType(type)}
+                    className={`p-3 rounded-xl text-sm font-medium border transition-all ${poolType === type ? "border-primary bg-primary/10 text-primary" : "border-border/50 bg-muted/30 text-muted-foreground hover:border-border"}`}
+                  >
+                    {type === "cpmm" ? "CPMM Pool" : "AMM v4 Pool"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Select Token */}
+            <div>
+              <Label>Select Token</Label>
+              <Select value={selectedToken} onValueChange={setSelectedToken}>
+                <SelectTrigger className="mt-1.5 bg-muted/50 border-border/50">
+                  <SelectValue placeholder="Choose your token" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tokens.map((t) => (
+                    <SelectItem key={t.contractAddress} value={t.contractAddress}>
+                      {t.name} ({t.symbol})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Token Amount */}
+            <div>
+              <Label>Token Amount (Recommended 95%+)</Label>
+              <Slider value={supplyPercent} onValueChange={handleSupplyChange} min={1} max={100} step={1} className="mt-3 mb-2" />
+              <div className="flex justify-between text-xs text-muted-foreground mb-2">
+                <span>{supplyPercent[0]}% of supply</span>
+                <div className="flex gap-2">
+                  {[25, 50, 75, 95, 100].map((p) => (
+                    <button key={p} onClick={() => handleSupplyChange([p])} className="px-2 py-0.5 rounded bg-muted/50 hover:bg-muted transition-colors">{p}%</button>
+                  ))}
+                </div>
+              </div>
+              <Input value={tokenAmount} onChange={(e) => setTokenAmount(e.target.value)} placeholder="Token amount" className="bg-muted/50 border-border/50" />
+            </div>
+
+            <div className="flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center">
+                <ArrowDown className="w-5 h-5 text-primary" />
+              </div>
+            </div>
+
+            {/* GYDS Amount */}
+            <div>
+              <Label>GYDS Amount (Recommended 10+)</Label>
+              <Input value={gydsAmount} onChange={(e) => setGydsAmount(e.target.value)} placeholder="Amount of GYDS to pair" className="mt-1.5 bg-muted/50 border-border/50" type="number" />
+            </div>
+
+            {/* Fee Tier */}
+            <div>
+              <Label>LP Fee Tier</Label>
+              <Select value={feeTier} onValueChange={setFeeTier}>
+                <SelectTrigger className="mt-1.5 bg-muted/50 border-border/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FEE_OPTIONS.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                LP providers earn 84% of trading fees. 16% goes to the protocol.
+              </p>
+            </div>
+
+            {/* Info */}
+            <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 text-sm text-warning flex gap-2">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>The amount of GYDS determines the starting price. Pool creation costs 0.5 GYDS. You'll receive LP tokens in return.</span>
+            </div>
+
+            <Button onClick={handleCreate} disabled={isCreating || !selectedToken || !tokenAmount || !gydsAmount} className="w-full btn-gradient">
+              {isCreating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating Pool...</> : <>
+                <Droplets className="w-4 h-4 mr-2" />Initialize Liquidity Pool
+              </>}
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default CreateLiquidityPage;
