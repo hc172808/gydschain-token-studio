@@ -16,15 +16,17 @@ interface CreateTokenPageProps {
   onConnectWallet: () => void;
 }
 
-const STEPS = ["Token Info", "Details", "Preview", "Deploy"];
+const STEPS = ["Token Info", "Details", "Authority", "Preview", "Deploy"];
 
 const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWallet }: CreateTokenPageProps) => {
   const [step, setStep] = useState(0);
   const [deployed, setDeployed] = useState<DeployedToken | null>(null);
+  const [revokeFreeze, setRevokeFreeze] = useState(true);
+  const [revokeMint, setRevokeMint] = useState(false);
   const [form, setForm] = useState<TokenMetadata>({
     name: "",
     symbol: "",
-    decimals: 9,
+    decimals: 6,
     totalSupply: "1000000000",
     description: "",
     logoUrl: "",
@@ -38,7 +40,7 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
   };
 
   const canProceed = () => {
-    if (step === 0) return form.name.trim().length >= 2 && form.symbol.trim().length >= 2;
+    if (step === 0) return form.name.trim().length >= 2 && form.symbol.trim().length >= 2 && form.symbol.trim().length <= 8;
     if (step === 1) return form.description.trim().length > 0 && Number(form.totalSupply) > 0;
     return true;
   };
@@ -51,7 +53,7 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
     try {
       const result = await onDeploy(form);
       setDeployed(result);
-      setStep(3);
+      setStep(4);
       toast.success("Token deployed successfully!");
     } catch {
       toast.error("Deployment failed. Please try again.");
@@ -143,7 +145,44 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
             )}
 
             {step === 2 && (
-              <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
+              <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-5">
+                <h3 className="font-heading font-semibold text-lg">Authority Settings</h3>
+                <p className="text-sm text-muted-foreground">Control minting and freezing permissions for your token.</p>
+
+                <button
+                  onClick={() => setRevokeFreeze(!revokeFreeze)}
+                  className={`w-full flex items-start gap-4 p-4 rounded-xl border transition-all text-left ${revokeFreeze ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"}`}
+                >
+                  <div className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 ${revokeFreeze ? "border-primary bg-primary" : "border-muted-foreground"}`}>
+                    {revokeFreeze && <Check className="w-3 h-3 text-primary-foreground" />}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Revoke Freeze Authority <span className="text-xs text-warning ml-1">(Required for LP)</span></p>
+                    <p className="text-xs text-muted-foreground mt-1">Allows you to create a liquidity pool. Cost: 0.1 GYDS</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setRevokeMint(!revokeMint)}
+                  className={`w-full flex items-start gap-4 p-4 rounded-xl border transition-all text-left ${revokeMint ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"}`}
+                >
+                  <div className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 ${revokeMint ? "border-primary bg-primary" : "border-muted-foreground"}`}>
+                    {revokeMint && <Check className="w-3 h-3 text-primary-foreground" />}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Revoke Mint Authority</p>
+                    <p className="text-xs text-muted-foreground mt-1">Ensures no more tokens can be minted. Provides security to buyers. Cost: 0.1 GYDS</p>
+                  </div>
+                </button>
+
+                <div className="bg-muted/30 rounded-lg p-3 text-sm text-muted-foreground">
+                  <p>You can also revoke mint authority later from the Dashboard.</p>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 3 && !deployed && (
+              <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
                 <h3 className="font-heading font-semibold text-lg mb-4">Token Preview</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   {[
@@ -164,13 +203,19 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
                     <p className="mt-0.5">{form.description}</p>
                   </div>
                 )}
+                {(revokeFreeze || revokeMint) && (
+                  <div className="bg-muted/30 rounded-lg p-3 text-sm space-y-1">
+                    {revokeFreeze && <p>✅ Freeze authority will be revoked (+0.1 GYDS)</p>}
+                    {revokeMint && <p>✅ Mint authority will be revoked (+0.1 GYDS)</p>}
+                  </div>
+                )}
                 <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 text-sm text-warning">
-                  ⚠️ Creation fee: {activeConfig.fees.tokenCreation} GYDS
+                  ⚠️ Total fee: {(activeConfig.fees.tokenCreation + (revokeFreeze ? 0.1 : 0) + (revokeMint ? 0.1 : 0)).toFixed(1)} GYDS
                 </div>
               </motion.div>
             )}
 
-            {step === 3 && deployed && (
+            {step === 4 && deployed && (
               <motion.div key="s3" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-6 text-center space-y-6">
                 <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto">
                   <Check className="w-8 h-8 text-success" />
@@ -202,12 +247,12 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
           </AnimatePresence>
 
           {/* Navigation */}
-          {step < 3 && (
+          {step < 4 && (
             <div className="flex justify-between mt-6">
               <Button variant="outline" onClick={() => setStep((s) => s - 1)} disabled={step === 0} className="border-border/50">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
-              {step < 2 ? (
+              {step < 3 ? (
                 <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()} className="btn-gradient">
                   Next <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
