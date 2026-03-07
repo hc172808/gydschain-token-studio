@@ -53,7 +53,7 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
     try {
       const result = await onDeploy(form);
       setDeployed(result);
-      setStep(3);
+      setStep(4);
       toast.success("Token deployed successfully!");
     } catch {
       toast.error("Deployment failed. Please try again.");

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Wallet, Menu, X, Zap } from "lucide-react";
+import { Wallet, Menu, X, Zap, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface NavbarProps {
@@ -13,14 +13,26 @@ interface NavbarProps {
 
 const navLinks = [
   { to: "/", label: "Home" },
-  { to: "/create", label: "Create Token" },
+  { to: "/create", label: "Token Creator" },
+  {
+    label: "DeFi",
+    children: [
+      { to: "/liquidity", label: "Create Liquidity" },
+      { to: "/swap", label: "Swap Token" },
+      { to: "/remove-liquidity", label: "Remove Liquidity" },
+      { to: "/burn", label: "Burn Token" },
+      { to: "/burn-and-earn", label: "Burn & Earn" },
+    ],
+  },
   { to: "/dashboard", label: "Dashboard" },
   { to: "/gallery", label: "Gallery" },
   { to: "/analytics", label: "Analytics" },
+  { to: "/leaderboard", label: "Leaderboard" },
 ];
 
 export const Navbar = ({ wallet, onConnect, onDisconnect, isConnecting }: NavbarProps) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [defiOpen, setDefiOpen] = useState(false);
   const location = useLocation();
 
   return (
@@ -33,20 +45,59 @@ export const Navbar = ({ wallet, onConnect, onDisconnect, isConnecting }: Navbar
           <span className="font-heading text-xl font-bold gradient-text">Netlify Coin Tools</span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-1">
-          {navLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                location.pathname === link.to
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+        <div className="hidden lg:flex items-center gap-1">
+          {navLinks.map((link) =>
+            "children" in link ? (
+              <div key={link.label} className="relative">
+                <button
+                  onClick={() => setDefiOpen(!defiOpen)}
+                  onBlur={() => setTimeout(() => setDefiOpen(false), 200)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                    link.children.some((c) => location.pathname === c.to)
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  {link.label} <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                <AnimatePresence>
+                  {defiOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 5 }}
+                      className="absolute top-full left-0 mt-1 w-48 glass-card-strong border border-border/50 rounded-xl p-2 z-50"
+                    >
+                      {link.children.map((child) => (
+                        <Link
+                          key={child.to}
+                          to={child.to}
+                          onClick={() => setDefiOpen(false)}
+                          className={`block px-3 py-2 rounded-lg text-sm ${
+                            location.pathname === child.to ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          }`}
+                        >
+                          {child.label}
+                        </Link>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname === link.to
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                {link.label}
+              </Link>
+            )
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -57,7 +108,7 @@ export const Navbar = ({ wallet, onConnect, onDisconnect, isConnecting }: Navbar
                 onClick={onDisconnect}
                 className="glass-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1.5"
               >
-                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-[hsl(var(--success))] animate-pulse" />
                 {wallet.address}
               </button>
             </div>
@@ -67,7 +118,7 @@ export const Navbar = ({ wallet, onConnect, onDisconnect, isConnecting }: Navbar
               {isConnecting ? "Connecting..." : "Connect Wallet"}
             </Button>
           )}
-          <button className="md:hidden text-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
+          <button className="lg:hidden text-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
             {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
@@ -79,21 +130,39 @@ export const Navbar = ({ wallet, onConnect, onDisconnect, isConnecting }: Navbar
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden glass-card-strong border-t border-border/30"
+            className="lg:hidden glass-card-strong border-t border-border/30"
           >
-            <div className="p-4 flex flex-col gap-2">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  onClick={() => setMobileOpen(false)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                    location.pathname === link.to ? "bg-primary/10 text-primary" : "text-muted-foreground"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
+            <div className="p-4 flex flex-col gap-1">
+              {navLinks.map((link) =>
+                "children" in link ? (
+                  <div key={link.label}>
+                    <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{link.label}</p>
+                    {link.children.map((child) => (
+                      <Link
+                        key={child.to}
+                        to={child.to}
+                        onClick={() => setMobileOpen(false)}
+                        className={`block px-6 py-2 rounded-lg text-sm ${
+                          location.pathname === child.to ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                        }`}
+                      >
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setMobileOpen(false)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                      location.pathname === link.to ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                )
+              )}
               {!wallet.isConnected && (
                 <Button onClick={() => { onConnect(); setMobileOpen(false); }} className="btn-gradient mt-2">
                   <Wallet className="w-4 h-4 mr-2" /> Connect Wallet
