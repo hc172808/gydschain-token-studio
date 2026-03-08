@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Wallet, Menu, X, Zap, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NetworkStatusIndicator } from "@/components/NetworkStatusIndicator";
 
 interface NavbarProps {
   wallet: { address: string | null; balance: string; isConnected: boolean };
@@ -100,7 +101,8 @@ export const Navbar = ({ wallet, onConnect, onDisconnect, isConnecting }: Navbar
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <NetworkStatusIndicator />
           {wallet.isConnected ? (
             <div className="hidden sm:flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{wallet.balance} GYDS</span>
