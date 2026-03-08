@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { Search, ExternalLink, Coins } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { DeployedToken } from "@/lib/blockchain/types";
