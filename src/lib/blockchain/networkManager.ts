@@ -1,10 +1,10 @@
-import { activeConfig, DEVNET_CONFIG, MAINNET_CONFIG, type ChainConfig } from "./config";
+import { DEVNET_CONFIG, MAINNET_CONFIG, type ChainConfig } from "./config";
 
 /** Listeners for network changes */
 type NetworkChangeListener = (config: ChainConfig) => void;
 const listeners: NetworkChangeListener[] = [];
 
-let currentConfig: ChainConfig = activeConfig;
+let currentConfig: ChainConfig = DEVNET_CONFIG;
 
 export const getCurrentConfig = () => currentConfig;
 

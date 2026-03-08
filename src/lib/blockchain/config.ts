@@ -64,14 +64,8 @@ export const activeConfig: ChainConfig = DEVNET_CONFIG;
 
 /** Get the currently active config (respects network switching) */
 export const getActiveConfig = (): ChainConfig => {
-  // Lazy import to avoid circular dependency
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getCurrentConfig } = require("./networkManager");
-    return getCurrentConfig();
-  } catch {
-    return activeConfig;
-  }
+  // Import dynamically to avoid circular dependency at module init
+  return (globalThis as Record<string, unknown>).__gydsCurrentConfig as ChainConfig ?? activeConfig;
 };
 
 export const getExplorerUrl = (type: "tx" | "token" | "address", hash: string) => {
