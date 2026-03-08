@@ -1,6 +1,9 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Trophy, Medal, Crown, Flame, TrendingUp } from "lucide-react";
+import { Trophy, Medal, Crown, Flame, TrendingUp, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchLeaderboard, isDbConfigured, type DbLeaderboardEntry } from "@/lib/dbService";
+import { getActiveConfig } from "@/lib/blockchain/config";
 
 const MOCK_LEADERBOARD = [
   { rank: 1, address: "0x7a3B...9f4E", tokens: 12, totalBurned: "2,500,000", totalLiquidity: "1,250 GYDS" },
@@ -20,6 +23,52 @@ const rankIcons: Record<number, React.ReactNode> = {
 };
 
 const LeaderboardPage = () => {
+  const [creators, setCreators] = useState<DbLeaderboardEntry[]>([]);
+  const [burners, setBurners] = useState<DbLeaderboardEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const loadLeaderboard = async () => {
+      if (!isDbConfigured()) return;
+      
+      setIsLoading(true);
+      const config = getActiveConfig();
+      const network = config.networkName.toLowerCase();
+      
+      const [creatorsData, burnersData] = await Promise.all([
+        fetchLeaderboard("creators", network, 20),
+        fetchLeaderboard("burners", network, 20),
+      ]);
+      
+      if (creatorsData.length > 0) setCreators(creatorsData);
+      if (burnersData.length > 0) setBurners(burnersData);
+      setIsLoading(false);
+    };
+
+    loadLeaderboard();
+  }, []);
+
+  // Use DB data if available, otherwise mock
+  const leaderboardData = creators.length > 0
+    ? creators.map((c) => ({
+        rank: c.rank,
+        address: c.wallet_address.slice(0, 6) + "..." + c.wallet_address.slice(-4),
+        tokens: c.tokens_created,
+        totalBurned: Number(c.total_burned).toLocaleString(),
+        totalLiquidity: `${Number(c.rewards_earned).toFixed(0)} GYDS`,
+      }))
+    : MOCK_LEADERBOARD;
+
+  const burnersData = burners.length > 0
+    ? burners.map((b) => ({
+        rank: b.rank,
+        address: b.wallet_address.slice(0, 6) + "..." + b.wallet_address.slice(-4),
+        tokens: b.tokens_created,
+        totalBurned: Number(b.total_burned).toLocaleString(),
+        totalLiquidity: `${Number(b.rewards_earned).toFixed(0)} GYDS`,
+      }))
+    : MOCK_LEADERBOARD;
+
   return (
     <div className="min-h-screen bg-background pt-24 pb-16">
       <div className="container mx-auto px-4 max-w-3xl">
@@ -29,12 +78,13 @@ const LeaderboardPage = () => {
             <h1 className="text-3xl font-heading font-bold">
               <span className="gradient-text">Leaderboard</span>
             </h1>
+            {isLoading && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
           </div>
           <p className="text-muted-foreground mb-8">Top creators and burners on GydsChain</p>
 
           {/* Top 3 */}
           <div className="grid grid-cols-3 gap-4 mb-8">
-            {MOCK_LEADERBOARD.slice(0, 3).map((user, i) => (
+            {leaderboardData.slice(0, 3).map((user, i) => (
               <motion.div
                 key={user.rank}
                 initial={{ opacity: 0, y: 20 }}
@@ -68,7 +118,7 @@ const LeaderboardPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {MOCK_LEADERBOARD.map((user) => (
+                    {leaderboardData.map((user) => (
                       <tr key={user.rank} className="border-b border-border/20 hover:bg-muted/20">
                         <td className="p-4">{rankIcons[user.rank] || <span className="text-muted-foreground">#{user.rank}</span>}</td>
                         <td className="p-4 font-mono text-primary">{user.address}</td>
@@ -93,7 +143,7 @@ const LeaderboardPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {MOCK_LEADERBOARD.map((user) => (
+                    {burnersData.map((user) => (
                       <tr key={user.rank} className="border-b border-border/20 hover:bg-muted/20">
                         <td className="p-4">{rankIcons[user.rank] || <span className="text-muted-foreground">#{user.rank}</span>}</td>
                         <td className="p-4 font-mono text-primary">{user.address}</td>

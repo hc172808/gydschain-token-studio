@@ -13,9 +13,10 @@ interface SwapTokenPageProps {
   tokens: DeployedToken[];
   isWalletConnected: boolean;
   onConnectWallet: () => void;
+  onSwapTokens?: (fromToken: string, toToken: string, amountIn: string, amountOutMin: string) => Promise<string>;
 }
 
-const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: SwapTokenPageProps) => {
+const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapTokens }: SwapTokenPageProps) => {
   const [fromToken, setFromToken] = useState("GYDS");
   const [toToken, setToToken] = useState("");
   const [fromAmount, setFromAmount] = useState("");
@@ -85,12 +86,27 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: SwapToken
 
   const handleSwap = async () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
+    if (!fromAmount || !toToken) return;
+
     setIsSwapping(true);
-    await new Promise((r) => setTimeout(r, 2500));
+    try {
+      const minOut = (Number(toAmount) * (1 - Number(slippage) / 100)).toFixed(6);
+
+      if (onSwapTokens) {
+        const txHash = await onSwapTokens(fromToken, toToken, fromAmount, minOut);
+        toast.success(`Swap completed! TX: ${txHash.slice(0, 10)}...`);
+      } else {
+        await new Promise((r) => setTimeout(r, 2500));
+        toast.success(`Swapped ${fromAmount} ${fromToken} for ${toAmount} ${toToken}`);
+      }
+
+      setFromAmount("");
+      setToAmount("");
+    } catch (err) {
+      console.error("[Swap] Error:", err);
+      toast.error("Swap failed. Please try again.");
+    }
     setIsSwapping(false);
-    toast.success(`Swapped ${fromAmount} ${fromToken} for ${toAmount} ${toToken}`);
-    setFromAmount("");
-    setToAmount("");
   };
 
   const rate = fromAmount && toAmount && Number(fromAmount) > 0
