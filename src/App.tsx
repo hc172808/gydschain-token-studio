@@ -19,6 +19,7 @@ import RemoveLiquidityPage from "./pages/RemoveLiquidity";
 import BurnTokenPage from "./pages/BurnToken";
 import BurnAndEarnPage from "./pages/BurnAndEarn";
 import LeaderboardPage from "./pages/Leaderboard";
+import TokenDetailPage from "./pages/TokenDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -95,6 +96,7 @@ const AppContent = () => {
           path="/burn-and-earn"
           element={<BurnAndEarnPage tokens={tokens} isWalletConnected={wallet.isConnected} onConnectWallet={handleOpenWalletModal} />}
         />
+        <Route path="/token/:address" element={<TokenDetailPage tokens={tokens} transactions={transactions} />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
