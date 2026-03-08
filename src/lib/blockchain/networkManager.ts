@@ -1,0 +1,23 @@
+import { activeConfig, DEVNET_CONFIG, MAINNET_CONFIG, type ChainConfig } from "./config";
+
+/** Listeners for network changes */
+type NetworkChangeListener = (config: ChainConfig) => void;
+const listeners: NetworkChangeListener[] = [];
+
+let currentConfig: ChainConfig = activeConfig;
+
+export const getCurrentConfig = () => currentConfig;
+
+export const switchNetwork = (network: "devnet" | "mainnet") => {
+  currentConfig = network === "devnet" ? DEVNET_CONFIG : MAINNET_CONFIG;
+  listeners.forEach((fn) => fn(currentConfig));
+  console.info(`[Network] Switched to ${currentConfig.networkName}`);
+};
+
+export const onNetworkChange = (fn: NetworkChangeListener) => {
+  listeners.push(fn);
+  return () => {
+    const idx = listeners.indexOf(fn);
+    if (idx >= 0) listeners.splice(idx, 1);
+  };
+};

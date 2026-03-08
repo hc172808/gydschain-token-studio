@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownUp, Settings, Loader2, RefreshCw } from "lucide-react";
+import { ArrowDownUp, Settings, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import type { DeployedToken } from "@/lib/blockchain/types";
+import { getPoolInfo, calculateSwapOutput, calculatePriceImpact, type PoolInfo } from "@/lib/blockchain/indexer";
 
 interface SwapTokenPageProps {
   tokens: DeployedToken[];
@@ -22,8 +23,36 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: SwapToken
   const [slippage, setSlippage] = useState("0.5");
   const [showSettings, setShowSettings] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
+  const [poolInfo, setPoolInfo] = useState<PoolInfo | null>(null);
+  const [priceImpact, setPriceImpact] = useState<number>(0);
+  const [isFetchingPool, setIsFetchingPool] = useState(false);
 
-  const allTokens = [{ symbol: "GYDS", name: "GYDS (Native)" }, ...tokens.map((t) => ({ symbol: t.symbol, name: t.name }))];
+  const allTokens = [
+    { symbol: "GYDS", name: "GYDS (Native)" },
+    ...tokens.map((t) => ({ symbol: t.symbol, name: t.name })),
+  ];
+
+  // Fetch pool data when token pair changes
+  const fetchPoolData = useCallback(async () => {
+    if (!fromToken || !toToken) return;
+
+    const toTokenData = tokens.find((t) => t.symbol === toToken);
+    if (!toTokenData) return;
+
+    setIsFetchingPool(true);
+    try {
+      const info = await getPoolInfo(toTokenData.contractAddress);
+      setPoolInfo(info);
+    } catch {
+      // Fallback: use mock rate when RPC unavailable
+      setPoolInfo(null);
+    }
+    setIsFetchingPool(false);
+  }, [fromToken, toToken, tokens]);
+
+  useEffect(() => {
+    fetchPoolData();
+  }, [fetchPoolData]);
 
   const handleSwapDirection = () => {
     setFromToken(toToken);
@@ -34,11 +63,23 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: SwapToken
 
   const handleFromAmountChange = (val: string) => {
     setFromAmount(val);
-    // Mock price calculation
-    if (val && Number(val) > 0) {
-      setToAmount((Number(val) * 1247.5).toFixed(2));
-    } else {
+    if (!val || Number(val) <= 0) {
       setToAmount("");
+      setPriceImpact(0);
+      return;
+    }
+
+    if (poolInfo) {
+      // Use real pool reserves for calculation
+      const amountWei = BigInt(Math.floor(Number(val) * 1e18)).toString();
+      const output = calculateSwapOutput(amountWei, poolInfo.reserve0, poolInfo.reserve1, Number(slippage));
+      const outputFormatted = (Number(output) / 1e18).toFixed(6);
+      setToAmount(outputFormatted);
+      setPriceImpact(calculatePriceImpact(amountWei, poolInfo.reserve0, poolInfo.reserve1));
+    } else {
+      // Fallback mock calculation
+      setToAmount((Number(val) * 1247.5).toFixed(2));
+      setPriceImpact(Number(val) > 100 ? 2.5 : 0.1);
     }
   };
 
@@ -51,6 +92,10 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: SwapToken
     setFromAmount("");
     setToAmount("");
   };
+
+  const rate = fromAmount && toAmount && Number(fromAmount) > 0
+    ? (Number(toAmount) / Number(fromAmount)).toLocaleString(undefined, { maximumFractionDigits: 4 })
+    : null;
 
   if (!isWalletConnected) {
     return (
@@ -117,7 +162,7 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: SwapToken
               </div>
             </div>
 
-            {/* Swap button */}
+            {/* Swap direction */}
             <div className="flex justify-center -my-1 relative z-10">
               <button onClick={handleSwapDirection} className="w-10 h-10 rounded-full bg-muted/80 border-4 border-background flex items-center justify-center hover:bg-primary/20 transition-colors group">
                 <ArrowDownUp className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -128,6 +173,7 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: SwapToken
             <div className="bg-muted/30 rounded-xl p-4">
               <div className="flex justify-between mb-2">
                 <span className="text-xs text-muted-foreground">To</span>
+                {isFetchingPool && <span className="text-xs text-primary animate-pulse">Fetching pool...</span>}
               </div>
               <div className="flex gap-3">
                 <Input value={toAmount} readOnly placeholder="0.0" className="bg-transparent border-0 text-2xl font-bold p-0 h-auto focus-visible:ring-0" />
@@ -147,9 +193,24 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: SwapToken
             {/* Price info */}
             {fromAmount && toAmount && (
               <div className="bg-muted/20 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
-                <div className="flex justify-between"><span>Rate</span><span>1 {fromToken} ≈ 1,247.5 {toToken}</span></div>
+                <div className="flex justify-between">
+                  <span>Rate</span>
+                  <span>1 {fromToken} ≈ {rate} {toToken}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Price Impact</span>
+                  <span className={priceImpact > 5 ? "text-destructive" : priceImpact > 2 ? "text-yellow-500" : "text-[hsl(var(--success))]"}>
+                    {priceImpact.toFixed(2)}%
+                  </span>
+                </div>
                 <div className="flex justify-between"><span>Slippage</span><span>{slippage}%</span></div>
                 <div className="flex justify-between"><span>Fee</span><span>0.25%</span></div>
+                <div className="flex justify-between">
+                  <span>Data source</span>
+                  <span className={poolInfo ? "text-[hsl(var(--success))]" : "text-yellow-500"}>
+                    {poolInfo ? "On-chain" : "Estimated"}
+                  </span>
+                </div>
               </div>
             )}
 

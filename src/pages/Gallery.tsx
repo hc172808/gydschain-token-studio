@@ -4,10 +4,17 @@ import { Search, ExternalLink, Coins } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { DeployedToken } from "@/lib/blockchain/types";
 import { getExplorerUrl } from "@/lib/blockchain/config";
+import tokenGold from "@/assets/token-gold.png";
+import tokenPurple from "@/assets/token-purple.png";
 
 interface GalleryPageProps {
   tokens: DeployedToken[];
 }
+
+const TOKEN_LOGOS: Record<string, string> = {
+  GGOLD: tokenGold,
+  NTFY: tokenPurple,
+};
 
 const GalleryPage = ({ tokens }: GalleryPageProps) => {
   const [search, setSearch] = useState("");
@@ -44,9 +51,17 @@ const GalleryPage = ({ tokens }: GalleryPageProps) => {
                 className="glass-card p-5 glow-effect group hover:border-primary/30 transition-all"
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                    <Coins className="w-5 h-5" />
-                  </div>
+                  {TOKEN_LOGOS[token.symbol] ? (
+                    <img
+                      src={TOKEN_LOGOS[token.symbol]}
+                      alt={token.symbol}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <Coins className="w-5 h-5" />
+                    </div>
+                  )}
                   <div>
                     <h3 className="font-heading font-semibold">{token.name}</h3>
                     <span className="text-xs text-primary font-mono">{token.symbol}</span>

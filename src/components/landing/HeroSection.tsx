@@ -1,14 +1,20 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { ArrowRight, Sparkles } from "lucide-react";
+import heroBg from "@/assets/hero-bg.jpg";
 
 export const HeroSection = () => (
   <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-16">
-    {/* Background effects */}
+    {/* Background image */}
+    <div className="absolute inset-0 pointer-events-none">
+      <img src={heroBg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
+    </div>
+
+    {/* Glow effects */}
     <div className="absolute inset-0 pointer-events-none">
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[120px]" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-[120px]" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[150px]" />
     </div>
 
     <div className="container mx-auto px-4 relative z-10">
