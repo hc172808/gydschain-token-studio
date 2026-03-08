@@ -26,7 +26,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { wallet, connect, disconnect, isConnecting } = useWallet();
-  const { tokens, transactions, deployToken, isDeploying } = useTokens();
+  const { tokens, transactions, deployToken, burnTokens, swapTokens, isDeploying } = useTokens();
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
 
@@ -82,7 +82,14 @@ const AppContent = () => {
         />
         <Route
           path="/swap"
-          element={<SwapTokenPage tokens={tokens} isWalletConnected={wallet.isConnected} onConnectWallet={handleOpenWalletModal} />}
+          element={
+            <SwapTokenPage
+              tokens={tokens}
+              isWalletConnected={wallet.isConnected}
+              onConnectWallet={handleOpenWalletModal}
+              onSwapTokens={swapTokens}
+            />
+          }
         />
         <Route
           path="/remove-liquidity"
@@ -90,7 +97,14 @@ const AppContent = () => {
         />
         <Route
           path="/burn"
-          element={<BurnTokenPage tokens={tokens} isWalletConnected={wallet.isConnected} onConnectWallet={handleOpenWalletModal} />}
+          element={
+            <BurnTokenPage
+              tokens={tokens}
+              isWalletConnected={wallet.isConnected}
+              onConnectWallet={handleOpenWalletModal}
+              onBurnTokens={burnTokens}
+            />
+          }
         />
         <Route
           path="/burn-and-earn"

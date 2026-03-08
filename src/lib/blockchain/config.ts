@@ -62,6 +62,9 @@ export const MAINNET_CONFIG: ChainConfig = {
 
 export const activeConfig: ChainConfig = DEVNET_CONFIG;
 
+/** Get the currently active config (respects network switching) */
+export { getCurrentConfig as getActiveConfig } from "./networkManager";
+
 export const getExplorerUrl = (type: "tx" | "token" | "address", hash: string) => {
   return `${activeConfig.explorerUrl}/${type}/${hash}`;
 };
