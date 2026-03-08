@@ -49,37 +49,37 @@ const GalleryPage = ({ tokens }: GalleryPageProps) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="glass-card p-5 glow-effect group hover:border-primary/30 transition-all cursor-pointer"
-                onClick={() => {}}
+                className="glass-card p-5 glow-effect group hover:border-primary/30 transition-all"
               >
                 <Link to={`/token/${token.contractAddress}`} className="block">
-                <div className="flex items-center gap-3 mb-4">
-                  {TOKEN_LOGOS[token.symbol] ? (
-                    <img
-                      src={TOKEN_LOGOS[token.symbol]}
-                      alt={token.symbol}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      <Coins className="w-5 h-5" />
+                  <div className="flex items-center gap-3 mb-4">
+                    {TOKEN_LOGOS[token.symbol] ? (
+                      <img
+                        src={TOKEN_LOGOS[token.symbol]}
+                        alt={token.symbol}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                        <Coins className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-heading font-semibold">{token.name}</h3>
+                      <span className="text-xs text-primary font-mono">{token.symbol}</span>
                     </div>
-                  )}
-                  <div>
-                    <h3 className="font-heading font-semibold">{token.name}</h3>
-                    <span className="text-xs text-primary font-mono">{token.symbol}</span>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-                  <div className="bg-muted/30 rounded-lg p-2.5">
-                    <span className="text-muted-foreground text-xs">Supply</span>
-                    <p className="font-medium text-sm">{Number(token.totalSupply).toLocaleString()}</p>
+                  <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                    <div className="bg-muted/30 rounded-lg p-2.5">
+                      <span className="text-muted-foreground text-xs">Supply</span>
+                      <p className="font-medium text-sm">{Number(token.totalSupply).toLocaleString()}</p>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-2.5">
+                      <span className="text-muted-foreground text-xs">Creator</span>
+                      <p className="font-mono text-xs">{token.creator}</p>
+                    </div>
                   </div>
-                  <div className="bg-muted/30 rounded-lg p-2.5">
-                    <span className="text-muted-foreground text-xs">Creator</span>
-                    <p className="font-mono text-xs">{token.creator}</p>
-                  </div>
-                </div>
+                </Link>
                 <a
                   href={getExplorerUrl("token", token.contractAddress)}
                   target="_blank"
