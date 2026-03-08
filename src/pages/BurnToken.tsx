@@ -14,9 +14,10 @@ interface BurnTokenPageProps {
   tokens: DeployedToken[];
   isWalletConnected: boolean;
   onConnectWallet: () => void;
+  onBurnTokens?: (tokenAddress: string, amount: string) => Promise<string>;
 }
 
-const BurnTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: BurnTokenPageProps) => {
+const BurnTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onBurnTokens }: BurnTokenPageProps) => {
   const [burnType, setBurnType] = useState<"token" | "lp">("token");
   const [selectedToken, setSelectedToken] = useState("");
   const [burnAmount, setBurnAmount] = useState("");
@@ -26,10 +27,35 @@ const BurnTokenPage = ({ tokens, isWalletConnected, onConnectWallet }: BurnToken
 
   const handleBurn = async () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
-    setIsBurning(true);
-    await new Promise((r) => setTimeout(r, 2500));
-    setIsBurning(false);
-    toast.success(burnType === "token" ? "Tokens burned!" : "LP tokens burned — liquidity locked!");
+
+    if (burnType === "token") {
+      if (!selectedToken) { toast.error("Select a token to burn"); return; }
+      if (!burnAmount || Number(burnAmount) <= 0) { toast.error("Enter a valid amount"); return; }
+
+      setIsBurning(true);
+      try {
+        if (onBurnTokens) {
+          const txHash = await onBurnTokens(selectedToken, burnAmount);
+          toast.success(`Tokens burned! TX: ${txHash.slice(0, 10)}...`);
+        } else {
+          await new Promise((r) => setTimeout(r, 2500));
+          toast.success("Tokens burned!");
+        }
+        setBurnAmount("");
+      } catch (err) {
+        console.error("[Burn] Error:", err);
+        toast.error("Burn failed. Please try again.");
+      }
+      setIsBurning(false);
+    } else {
+      if (!lpAddress) { toast.error("Enter LP token address"); return; }
+
+      setIsBurning(true);
+      await new Promise((r) => setTimeout(r, 2500));
+      setIsBurning(false);
+      toast.success(`Burned ${burnPercent[0]}% LP tokens — liquidity locked!`);
+      setLpAddress("");
+    }
   };
 
   if (!isWalletConnected) {

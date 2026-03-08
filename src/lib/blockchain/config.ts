@@ -62,6 +62,12 @@ export const MAINNET_CONFIG: ChainConfig = {
 
 export const activeConfig: ChainConfig = DEVNET_CONFIG;
 
+/** Get the currently active config (respects network switching) */
+export const getActiveConfig = (): ChainConfig => {
+  // Import dynamically to avoid circular dependency at module init
+  return (globalThis as Record<string, unknown>).__gydsCurrentConfig as ChainConfig ?? activeConfig;
+};
+
 export const getExplorerUrl = (type: "tx" | "token" | "address", hash: string) => {
   return `${activeConfig.explorerUrl}/${type}/${hash}`;
 };
