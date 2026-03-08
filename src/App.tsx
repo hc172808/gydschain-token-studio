@@ -19,6 +19,7 @@ import RemoveLiquidityPage from "./pages/RemoveLiquidity";
 import BurnTokenPage from "./pages/BurnToken";
 import BurnAndEarnPage from "./pages/BurnAndEarn";
 import LeaderboardPage from "./pages/Leaderboard";
+import TokenDetailPage from "./pages/TokenDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
