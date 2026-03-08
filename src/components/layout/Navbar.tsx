@@ -101,7 +101,8 @@ export const Navbar = ({ wallet, onConnect, onDisconnect, isConnecting }: Navbar
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <NetworkStatusIndicator />
           {wallet.isConnected ? (
             <div className="hidden sm:flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{wallet.balance} GYDS</span>
