@@ -49,8 +49,10 @@ const GalleryPage = ({ tokens }: GalleryPageProps) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="glass-card p-5 glow-effect group hover:border-primary/30 transition-all"
+                className="glass-card p-5 glow-effect group hover:border-primary/30 transition-all cursor-pointer"
+                onClick={() => {}}
               >
+                <Link to={`/token/${token.contractAddress}`} className="block">
                 <div className="flex items-center gap-3 mb-4">
                   {TOKEN_LOGOS[token.symbol] ? (
                     <img
