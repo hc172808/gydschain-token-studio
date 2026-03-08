@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Droplets, ArrowDown, Info, Loader2 } from "lucide-react";
+import { Droplets, ArrowDown, Info, Loader2, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { activeConfig } from "@/lib/blockchain/config";
 import type { DeployedToken } from "@/lib/blockchain/types";
+import { getPoolInfo, type PoolInfo } from "@/lib/blockchain/indexer";
 
 interface CreateLiquidityPageProps {
   tokens: DeployedToken[];
@@ -31,8 +32,30 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
   const [supplyPercent, setSupplyPercent] = useState([95]);
   const [isCreating, setIsCreating] = useState(false);
   const [poolType, setPoolType] = useState<"cpmm" | "amm-v4">("cpmm");
+  const [existingPool, setExistingPool] = useState<PoolInfo | null>(null);
+  const [isLoadingPool, setIsLoadingPool] = useState(false);
 
   const selectedTokenData = tokens.find((t) => t.contractAddress === selectedToken);
+
+  // Check for existing pool when token is selected
+  useEffect(() => {
+    if (!selectedToken) {
+      setExistingPool(null);
+      return;
+    }
+
+    const fetchPool = async () => {
+      setIsLoadingPool(true);
+      try {
+        const pool = await getPoolInfo(selectedToken);
+        setExistingPool(pool);
+      } catch {
+        setExistingPool(null);
+      }
+      setIsLoadingPool(false);
+    };
+    fetchPool();
+  }, [selectedToken]);
 
   const handleSupplyChange = (val: number[]) => {
     setSupplyPercent(val);
@@ -41,6 +64,11 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
       setTokenAmount(String(amount));
     }
   };
+
+  // Calculate estimated starting price
+  const startingPrice = tokenAmount && gydsAmount && Number(tokenAmount) > 0
+    ? (Number(gydsAmount) / Number(tokenAmount)).toFixed(8)
+    : null;
 
   const handleCreate = async () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
@@ -104,6 +132,23 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Existing pool indicator */}
+              {isLoadingPool && (
+                <p className="text-xs text-primary mt-1.5 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Checking for existing pools...
+                </p>
+              )}
+              {existingPool && (
+                <div className="mt-2 bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs space-y-1">
+                  <p className="text-primary font-medium flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3" /> Existing pool found
+                  </p>
+                  <p className="text-muted-foreground">Reserve 0: {(Number(existingPool.reserve0) / 1e18).toFixed(4)}</p>
+                  <p className="text-muted-foreground">Reserve 1: {(Number(existingPool.reserve1) / 1e18).toFixed(4)}</p>
+                  <p className="text-muted-foreground">LP Supply: {(Number(existingPool.totalSupply) / 1e18).toFixed(4)}</p>
+                </div>
+              )}
             </div>
 
             {/* Token Amount */}
@@ -132,6 +177,20 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
               <Label>GYDS Amount (Recommended 10+)</Label>
               <Input value={gydsAmount} onChange={(e) => setGydsAmount(e.target.value)} placeholder="Amount of GYDS to pair" className="mt-1.5 bg-muted/50 border-border/50" type="number" />
             </div>
+
+            {/* Starting price estimate */}
+            {startingPrice && (
+              <div className="bg-muted/20 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+                <div className="flex justify-between">
+                  <span>Starting Price</span>
+                  <span className="text-foreground font-medium">1 token = {startingPrice} GYDS</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Pool Type</span>
+                  <span className="text-foreground">{poolType === "cpmm" ? "Constant Product (CPMM)" : "AMM v4"}</span>
+                </div>
+              </div>
+            )}
 
             {/* Fee Tier */}
             <div>
