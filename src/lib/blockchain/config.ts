@@ -1,8 +1,10 @@
 export interface ChainConfig {
   networkName: string;
   rpcUrl: string;
+  rpcFallbacks: string[];
   chainId: number;
   explorerUrl: string;
+  indexerUrl: string;
   nativeCurrency: {
     name: string;
     symbol: string;
@@ -16,9 +18,16 @@ export interface ChainConfig {
 
 export const DEVNET_CONFIG: ChainConfig = {
   networkName: "GydsChain Devnet",
-  rpcUrl: "https://devnet.gydschain.net",
+  rpcUrl: "https://rpc.netlifegy.com",
+  rpcFallbacks: [
+    "https://rpc2.netlifegy.com",
+    "https://rpc3.netlifegy.com",
+    "https://localhost:8546",
+    "https://192.168.18.106:8546",
+  ],
   chainId: 12345,
   explorerUrl: "https://explorer.gydschain.net",
+  indexerUrl: "https://rpc.netlifegy.com",
   nativeCurrency: {
     name: "GYDS",
     symbol: "GYDS",
@@ -32,9 +41,14 @@ export const DEVNET_CONFIG: ChainConfig = {
 
 export const MAINNET_CONFIG: ChainConfig = {
   networkName: "GydsChain Mainnet",
-  rpcUrl: "https://mainnet.gydschain.net",
+  rpcUrl: "https://rpc.netlifegy.com",
+  rpcFallbacks: [
+    "https://rpc2.netlifegy.com",
+    "https://rpc3.netlifegy.com",
+  ],
   chainId: 12346,
   explorerUrl: "https://explorer.gydschain.net",
+  indexerUrl: "https://rpc.netlifegy.com",
   nativeCurrency: {
     name: "GYDS",
     symbol: "GYDS",
