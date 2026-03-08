@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Wallet, Menu, X, Zap, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NetworkStatusIndicator } from "@/components/NetworkStatusIndicator";
 
 interface NavbarProps {
   wallet: { address: string | null; balance: string; isConnected: boolean };
