@@ -30,6 +30,7 @@ const navLinks = [
   { to: "/gallery", label: "Gallery" },
   { to: "/analytics", label: "Analytics" },
   { to: "/leaderboard", label: "Leaderboard" },
+  { to: "/profile", label: "Profile" },
 ];
 
 export const Navbar = ({ wallet, onConnect, onDisconnect, isConnecting }: NavbarProps) => {
