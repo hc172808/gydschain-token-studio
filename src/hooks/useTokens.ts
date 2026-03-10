@@ -1,8 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { DeployedToken, Transaction } from "@/lib/blockchain/types";
-import { sendTransaction, type EthereumProvider } from "@/lib/blockchain/walletAdapter";
+import type { EthereumProvider } from "@/lib/blockchain/walletAdapter";
 import { activeConfig, getActiveConfig } from "@/lib/blockchain/config";
 import { toast } from "sonner";
+import {
+  deployERC20,
+  getTransactionReceipt,
+  encodeBurnCall,
+  encodeSwapCall,
+} from "@/lib/blockchain/erc20Factory";
+import { sendTransaction } from "@/lib/blockchain/walletAdapter";
 import {
   fetchTokens,
   fetchTransactions,
@@ -12,38 +19,6 @@ import {
   dbTransactionToTransaction,
   isDbConfigured,
 } from "@/lib/dbService";
-
-// ERC-20 bytecode placeholder for token creation
-// In production, this would be the actual compiled contract bytecode
-const TOKEN_FACTORY_ADDRESS = "0x0000000000000000000000000000000000000001";
-
-// ABI-encoded function signature for createToken(name, symbol, decimals, supply)
-const encodeCreateToken = (name: string, symbol: string, decimals: number, supply: string): string => {
-  // Simplified encoding - in production use ethers.js or viem
-  const fnSelector = "0x8a6d8a6d"; // Mock function selector
-  const encodedName = name.padEnd(32, "\0").slice(0, 32);
-  const encodedSymbol = symbol.padEnd(32, "\0").slice(0, 32);
-  const hexName = Array.from(encodedName).map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
-  const hexSymbol = Array.from(encodedSymbol).map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
-  const hexDecimals = decimals.toString(16).padStart(64, "0");
-  const hexSupply = BigInt(supply).toString(16).padStart(64, "0");
-  return fnSelector + hexName + hexSymbol + hexDecimals + hexSupply;
-};
-
-// ABI-encoded function signature for burn(amount)
-const encodeBurn = (amount: string): string => {
-  const fnSelector = "0x42966c68"; // burn(uint256)
-  const hexAmount = BigInt(amount).toString(16).padStart(64, "0");
-  return fnSelector + hexAmount;
-};
-
-// ABI-encoded function signature for swap
-const encodeSwap = (amountIn: string, amountOutMin: string): string => {
-  const fnSelector = "0x38ed1739"; // swapExactTokensForTokens
-  const hexAmountIn = BigInt(amountIn).toString(16).padStart(64, "0");
-  const hexAmountOutMin = BigInt(amountOutMin).toString(16).padStart(64, "0");
-  return fnSelector + hexAmountIn + hexAmountOutMin;
-};
 
 const MOCK_TOKENS: DeployedToken[] = [
   {
@@ -84,6 +59,9 @@ const MOCK_TRANSACTIONS: Transaction[] = [
   { hash: "0xTx3...Hash", type: "mint", tokenSymbol: "GGOLD", amount: "5000000", timestamp: "2026-03-04T10:15:00Z", status: "success" },
 ];
 
+// DEX router address on GydsChain
+const DEX_ROUTER_ADDRESS = "0x0000000000000000000000000000000000000002";
+
 interface UseTokensOptions {
   provider?: EthereumProvider | null;
   walletAddress?: string | null;
@@ -96,24 +74,18 @@ export const useTokens = (options: UseTokensOptions = {}) => {
   const [isDeploying, setIsDeploying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch data from DB on mount
   const loadFromDb = useCallback(async () => {
     if (!isDbConfigured()) return;
-    
     setIsLoading(true);
     try {
       const config = getActiveConfig();
+      const network = config.networkName.toLowerCase().includes("mainnet") ? "mainnet" : "devnet";
       const [dbTokens, dbTxs] = await Promise.all([
-        fetchTokens(config.networkName.toLowerCase()),
-        fetchTransactions(config.networkName.toLowerCase()),
+        fetchTokens(network),
+        fetchTransactions(network),
       ]);
-
-      if (dbTokens.length > 0) {
-        setTokens(dbTokens.map(dbTokenToDeployedToken));
-      }
-      if (dbTxs.length > 0) {
-        setTransactions(dbTxs.map(dbTransactionToTransaction));
-      }
+      if (dbTokens.length > 0) setTokens(dbTokens.map(dbTokenToDeployedToken));
+      if (dbTxs.length > 0) setTransactions(dbTxs.map(dbTransactionToTransaction));
     } catch (err) {
       console.warn("[useTokens] Failed to load from DB:", err);
     }
@@ -124,50 +96,59 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     loadFromDb();
   }, [loadFromDb]);
 
-  /** Deploy a new token with real transaction signing */
+  /** Deploy a new ERC-20 token with real contract bytecode */
   const deployToken = async (
     metadata: Omit<DeployedToken, "contractAddress" | "transactionHash" | "creator" | "createdAt" | "isPaused" | "currentSupply">
   ): Promise<DeployedToken> => {
     setIsDeploying(true);
-    
+
     let txHash = "";
     let contractAddress = "";
+    const creatorAddr = walletAddress || "0x7a3B...9f4E";
 
-    // Try real transaction if provider available
+    // Try real deployment via wallet
     if (provider && walletAddress) {
       try {
-        const data = encodeCreateToken(
+        const feesInWei = BigInt(Math.floor(activeConfig.fees.tokenCreation * 1e18));
+
+        toast.info("Deploying ERC-20 contract — please confirm in your wallet...");
+
+        txHash = await deployERC20(
+          provider,
+          walletAddress,
           metadata.name,
           metadata.symbol,
           metadata.decimals,
-          metadata.totalSupply
+          metadata.totalSupply,
+          feesInWei.toString()
         );
-
-        const feesInWei = BigInt(Math.floor(activeConfig.fees.tokenCreation * 1e18));
-
-        toast.info("Please confirm the transaction in your wallet...");
-
-        txHash = await sendTransaction(provider, {
-          from: walletAddress,
-          to: TOKEN_FACTORY_ADDRESS,
-          value: `0x${feesInWei.toString(16)}`,
-          data,
-        });
 
         toast.success("Transaction submitted! Waiting for confirmation...");
 
-        // Generate contract address from tx hash (simplified - in production read from receipt)
-        contractAddress = `0x${txHash.slice(2, 10)}...${txHash.slice(-8)}`;
+        // Wait for receipt to get contract address
+        try {
+          const receipt = await getTransactionReceipt(provider, txHash, 30, 2000);
+          contractAddress = receipt.contractAddress || `0x${txHash.slice(2, 10)}...${txHash.slice(-8)}`;
+          
+          if (receipt.status === "failed") {
+            toast.error("Contract deployment failed on-chain.");
+          } else {
+            toast.success(`Contract deployed at ${contractAddress.slice(0, 10)}...`);
+          }
+        } catch {
+          // Timeout — use derived address
+          contractAddress = `0x${txHash.slice(2, 10)}...${txHash.slice(-8)}`;
+          toast.info("Couldn't confirm receipt yet. Contract address derived from tx hash.");
+        }
 
-        console.info(`[Token] Created via tx: ${txHash}`);
+        console.info(`[Token] Deployed ERC-20 via tx: ${txHash} → ${contractAddress}`);
       } catch (err) {
-        console.error("[Token] Real transaction failed:", err);
-        toast.error("Transaction failed. Using mock deployment.");
-        // Fall through to mock
+        console.error("[Token] Real deployment failed:", err);
+        toast.error("Deployment failed. Using mock deployment.");
       }
     }
 
-    // Fallback to mock if no real tx
+    // Fallback mock
     if (!txHash) {
       await new Promise((r) => setTimeout(r, 2500));
       txHash = `0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`;
@@ -179,14 +160,15 @@ export const useTokens = (options: UseTokensOptions = {}) => {
       currentSupply: metadata.totalSupply,
       contractAddress,
       transactionHash: txHash,
-      creator: walletAddress || "0x7a3B...9f4E",
+      creator: creatorAddr,
       createdAt: new Date().toISOString(),
       isPaused: false,
     };
 
-    // Save to DB if configured
+    // Persist to DB
     if (isDbConfigured()) {
       const config = getActiveConfig();
+      const network = config.networkName.toLowerCase().includes("mainnet") ? "mainnet" : "devnet";
       await Promise.all([
         createToken({
           name: newToken.name,
@@ -202,7 +184,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
           contract_address: newToken.contractAddress,
           transaction_hash: newToken.transactionHash,
           creator_address: newToken.creator,
-          network: config.networkName.toLowerCase(),
+          network,
           is_paused: false,
           freeze_revoked: true,
           mint_revoked: false,
@@ -213,7 +195,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
           token_symbol: newToken.symbol,
           from_address: newToken.creator,
           status: "success",
-          network: config.networkName.toLowerCase(),
+          network,
         }),
       ]);
     }
@@ -234,11 +216,8 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     return newToken;
   };
 
-  /** Burn tokens with real transaction signing */
-  const burnTokens = async (
-    tokenAddress: string,
-    amount: string
-  ): Promise<string> => {
+  /** Burn tokens using real ERC-20 burn function */
+  const burnTokens = async (tokenAddress: string, amount: string): Promise<string> => {
     const token = tokens.find((t) => t.contractAddress === tokenAddress);
     if (!token) throw new Error("Token not found");
 
@@ -246,21 +225,20 @@ export const useTokens = (options: UseTokensOptions = {}) => {
 
     if (provider && walletAddress) {
       try {
-        const data = encodeBurn(amount);
-
+        const data = encodeBurnCall(amount, token.decimals);
         toast.info("Please confirm the burn transaction...");
 
         txHash = await sendTransaction(provider, {
           from: walletAddress,
-          to: tokenAddress.replace(/\.\.\./g, "0".repeat(32)),
+          to: tokenAddress.includes("...") ? tokenAddress.replace(/\.\.\./g, "0".repeat(32)).slice(0, 42) : tokenAddress,
           data,
         });
 
         toast.success("Burn transaction submitted!");
         console.info(`[Token] Burned via tx: ${txHash}`);
       } catch (err) {
-        console.error("[Token] Burn transaction failed:", err);
-        toast.error("Transaction failed. Using mock burn.");
+        console.error("[Token] Burn failed:", err);
+        toast.error("Burn failed. Using mock burn.");
       }
     }
 
@@ -278,9 +256,9 @@ export const useTokens = (options: UseTokensOptions = {}) => {
       status: "success",
     };
 
-    // Save to DB
     if (isDbConfigured()) {
       const config = getActiveConfig();
+      const network = config.networkName.toLowerCase().includes("mainnet") ? "mainnet" : "devnet";
       await createTransaction({
         hash: txHash,
         type: "burn",
@@ -288,7 +266,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
         amount,
         from_address: walletAddress || "0x7a3B...9f4E",
         status: "success",
-        network: config.networkName.toLowerCase(),
+        network,
       });
     }
 
@@ -296,13 +274,13 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     return txHash;
   };
 
-  /** Swap tokens with real transaction signing */
+  /** Swap tokens using DEX router contract */
   const swapTokens = async (
     fromToken: string,
     toToken: string,
     amountIn: string,
     amountOutMin: string,
-    routerAddress = "0x0000000000000000000000000000000000000002"
+    routerAddress = DEX_ROUTER_ADDRESS
   ): Promise<string> => {
     let txHash = "";
 
@@ -310,7 +288,15 @@ export const useTokens = (options: UseTokensOptions = {}) => {
       try {
         const amountInWei = BigInt(Math.floor(Number(amountIn) * 1e18)).toString();
         const amountOutMinWei = BigInt(Math.floor(Number(amountOutMin) * 1e18)).toString();
-        const data = encodeSwap(amountInWei, amountOutMinWei);
+        const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 min
+
+        const data = encodeSwapCall(
+          amountInWei,
+          amountOutMinWei,
+          [fromToken, toToken],
+          walletAddress,
+          deadline
+        );
 
         toast.info("Please confirm the swap transaction...");
 
@@ -337,10 +323,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     return txHash;
   };
 
-  /** Refresh data from database */
-  const refresh = () => {
-    loadFromDb();
-  };
+  const refresh = () => { loadFromDb(); };
 
   return {
     tokens,

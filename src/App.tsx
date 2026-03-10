@@ -20,6 +20,7 @@ import BurnTokenPage from "./pages/BurnToken";
 import BurnAndEarnPage from "./pages/BurnAndEarn";
 import LeaderboardPage from "./pages/Leaderboard";
 import TokenDetailPage from "./pages/TokenDetail";
+import ProfilePage from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -111,6 +112,17 @@ const AppContent = () => {
           element={<BurnAndEarnPage tokens={tokens} isWalletConnected={wallet.isConnected} onConnectWallet={handleOpenWalletModal} />}
         />
         <Route path="/token/:address" element={<TokenDetailPage tokens={tokens} transactions={transactions} />} />
+        <Route
+          path="/profile"
+          element={
+            <ProfilePage
+              tokens={tokens}
+              transactions={transactions}
+              wallet={wallet}
+              onConnectWallet={handleOpenWalletModal}
+            />
+          }
+        />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
