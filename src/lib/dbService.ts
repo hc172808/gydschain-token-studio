@@ -121,6 +121,7 @@ export interface DbTransaction {
   token_symbol: string;
   amount: string | null;
   from_address: string | null;
+  to_address: string | null;
   status: string;
   network: string;
   created_at: string;
