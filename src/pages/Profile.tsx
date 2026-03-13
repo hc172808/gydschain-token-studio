@@ -271,9 +271,6 @@ const ProfilePage = ({ tokens, transactions, wallet, onConnectWallet }: ProfileP
             </TabsContent>
 
             {/* Achievements Tab */}
-            <TabsContent value="activity" className="mt-4">
-              {/* Intentionally left as placeholder */}
-            </TabsContent>
             <TabsContent value="achievements" className="mt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
