@@ -70,7 +70,7 @@ const AppContent = () => {
         />
         <Route
           path="/dashboard"
-          element={<DashboardPage tokens={tokens} transactions={transactions} isWalletConnected={wallet.isConnected} />}
+          element={<DashboardPage tokens={tokens} transactions={transactions} isWalletConnected={wallet.isConnected} onTransferTokens={transferTokens} />}
         />
         <Route path="/gallery" element={<GalleryPage tokens={tokens} />} />
         <Route

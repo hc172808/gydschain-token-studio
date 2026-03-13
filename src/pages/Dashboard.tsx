@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Copy, ExternalLink, Flame, Coins, Pause, Play, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { TransferDialog } from "@/components/TransferDialog";
 import type { DeployedToken, Transaction } from "@/lib/blockchain/types";
 import { getExplorerUrl } from "@/lib/blockchain/config";
 
@@ -9,12 +11,28 @@ interface DashboardPageProps {
   tokens: DeployedToken[];
   transactions: Transaction[];
   isWalletConnected: boolean;
+  onTransferTokens?: (tokenAddress: string, to: string, amount: string) => Promise<string>;
 }
 
-const DashboardPage = ({ tokens, transactions, isWalletConnected }: DashboardPageProps) => {
+const DashboardPage = ({ tokens, transactions, isWalletConnected, onTransferTokens }: DashboardPageProps) => {
+  const [transferToken, setTransferToken] = useState<DeployedToken | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied!");
+  };
+
+  const handleTransferClick = (token: DeployedToken) => {
+    setTransferToken(token);
+    setTransferOpen(true);
+  };
+
+  const handleTransfer = async (tokenAddress: string, to: string, amount: string) => {
+    if (onTransferTokens) {
+      return onTransferTokens(tokenAddress, to, amount);
+    }
+    throw new Error("Transfer not available");
   };
 
   if (!isWalletConnected) {
@@ -85,7 +103,12 @@ const DashboardPage = ({ tokens, transactions, isWalletConnected }: DashboardPag
                     {token.isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
                     {token.isPaused ? "Resume" : "Pause"}
                   </Button>
-                  <Button size="sm" variant="outline" className="border-border/50 text-xs gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-border/50 text-xs gap-1.5"
+                    onClick={() => handleTransferClick(token)}
+                  >
                     <Send className="w-3.5 h-3.5" /> Transfer
                   </Button>
                 </div>
@@ -127,6 +150,13 @@ const DashboardPage = ({ tokens, transactions, isWalletConnected }: DashboardPag
           </div>
         </motion.div>
       </div>
+
+      <TransferDialog
+        open={transferOpen}
+        onOpenChange={setTransferOpen}
+        token={transferToken}
+        onTransfer={handleTransfer}
+      />
     </div>
   );
 };
