@@ -27,7 +27,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { wallet, connect, disconnect, isConnecting } = useWallet();
-  const { tokens, transactions, deployToken, burnTokens, swapTokens, isDeploying } = useTokens();
+  const { tokens, transactions, deployToken, burnTokens, swapTokens, transferTokens, isDeploying } = useTokens();
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
 
