@@ -65,6 +65,7 @@ const AppContent = () => {
           element={
             <CreateTokenPage
               isWalletConnected={wallet.isConnected}
+              walletAddress={wallet.address}
               onDeploy={deployToken}
               isDeploying={isDeploying}
               onConnectWallet={handleOpenWalletModal}

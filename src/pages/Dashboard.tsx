@@ -174,6 +174,35 @@ const DashboardPage = ({
                   </div>
                 </div>
 
+
+                {/* GPL Authority Summary */}
+                {token.gplConfig && (
+                  <div className="bg-muted/20 rounded-lg p-3 mb-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Shield className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">GPL Authorities</span>
+                      {token.gplConfig.multisig && (
+                        <span className="ml-auto text-[0.6rem] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                          🔐 {token.gplConfig.multisig.threshold}/{token.gplConfig.multisig.signers.length} Multisig
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1">
+                      {token.gplConfig.authorities.filter(a => a.type !== "program" && a.type !== "owner").map((auth) => (
+                        <div key={auth.type} className="flex items-center gap-1.5 text-[0.65rem]">
+                          <span>{AUTHORITY_LABELS[auth.type].icon}</span>
+                          <span className="truncate">{AUTHORITY_LABELS[auth.type].label.replace(" Authority", "")}</span>
+                          {auth.isRevoked ? (
+                            <span className="text-destructive ml-auto">🚫</span>
+                          ) : (
+                            <span className="text-[hsl(var(--success))] ml-auto">✅</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-2 flex-wrap">
                   <Button size="sm" variant="outline" className="border-border/50 text-xs gap-1.5">
                     <Coins className="w-3.5 h-3.5" /> Mint
