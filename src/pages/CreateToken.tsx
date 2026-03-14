@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Copy, ExternalLink, Upload, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { Check, Copy, ExternalLink, Upload, ArrowLeft, ArrowRight, Loader2, Plus, Trash2, Shield } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -8,23 +8,39 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { TokenMetadata, DeployedToken } from "@/lib/blockchain/types";
 import { activeConfig, getExplorerUrl } from "@/lib/blockchain/config";
+import {
+  type AuthorityType,
+  AUTHORITY_LABELS,
+  buildGPLTokenConfig,
+} from "@/lib/blockchain/gplAuthority";
 
 interface CreateTokenPageProps {
   isWalletConnected: boolean;
+  walletAddress?: string | null;
   onDeploy: (meta: TokenMetadata) => Promise<DeployedToken>;
   isDeploying: boolean;
   onConnectWallet: () => void;
 }
 
-const STEPS = ["Token Info", "Details", "Authority", "Preview", "Deploy"];
+const STEPS = ["Token Info", "Details", "GPL Authority", "Multisig", "Preview", "Deploy"];
 
-const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWallet }: CreateTokenPageProps) => {
+const REVOCABLE_AUTHORITIES: AuthorityType[] = ["mint", "freeze", "burn", "close", "update", "delegate"];
+
+const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeploying, onConnectWallet }: CreateTokenPageProps) => {
   const [step, setStep] = useState(0);
   const [deployed, setDeployed] = useState<DeployedToken | null>(null);
-  const [revokeFreeze, setRevokeFreeze] = useState(true);
-  const [revokeMint, setRevokeMint] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string>("");
+
+  // Authority state
+  const [revokedAuthorities, setRevokedAuthorities] = useState<Set<AuthorityType>>(new Set(["freeze"]));
+
+  // Multisig state
+  const [enableMultisig, setEnableMultisig] = useState(false);
+  const [multisigThreshold, setMultisigThreshold] = useState(2);
+  const [multisigSigners, setMultisigSigners] = useState<string[]>([""]);
+  const [multisigAuthorities, setMultisigAuthorities] = useState<Set<AuthorityType>>(new Set(["mint", "freeze", "update"]));
+
   const [form, setForm] = useState<TokenMetadata>({
     name: "",
     symbol: "",
@@ -58,9 +74,36 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const toggleAuthority = (type: AuthorityType) => {
+    setRevokedAuthorities((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  };
+
+  const toggleMultisigAuthority = (type: AuthorityType) => {
+    setMultisigAuthorities((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  };
+
+  const addSigner = () => setMultisigSigners((prev) => [...prev, ""]);
+  const removeSigner = (idx: number) => setMultisigSigners((prev) => prev.filter((_, i) => i !== idx));
+  const updateSigner = (idx: number, value: string) =>
+    setMultisigSigners((prev) => prev.map((s, i) => (i === idx ? value : s)));
+
   const canProceed = () => {
     if (step === 0) return form.name.trim().length >= 2 && form.symbol.trim().length >= 2 && form.symbol.trim().length <= 8;
     if (step === 1) return form.description.trim().length > 0 && Number(form.totalSupply) > 0 && logoFile !== null;
+    if (step === 3 && enableMultisig) {
+      const validSigners = multisigSigners.filter((s) => s.startsWith("0x") && s.length >= 10);
+      return validSigners.length >= 2 && multisigThreshold >= 1 && multisigThreshold <= validSigners.length;
+    }
     return true;
   };
 
@@ -71,9 +114,24 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
     }
     try {
       const result = await onDeploy(form);
+
+      // Build GPL config and attach
+      const gplConfig = buildGPLTokenConfig(
+        result.contractAddress,
+        walletAddress || result.creator,
+        {
+          revokeMint: revokedAuthorities.has("mint"),
+          revokeFreeze: revokedAuthorities.has("freeze"),
+          multisigSigners: enableMultisig ? multisigSigners.filter((s) => s.startsWith("0x")) : undefined,
+          multisigThreshold: enableMultisig ? multisigThreshold : undefined,
+          multisigAuthorities: enableMultisig ? Array.from(multisigAuthorities) : undefined,
+        }
+      );
+      result.gplConfig = gplConfig;
+
       setDeployed(result);
-      setStep(4);
-      toast.success("Token deployed successfully!");
+      setStep(5);
+      toast.success("GPL Token deployed successfully!");
     } catch {
       toast.error("Deployment failed. Please try again.");
     }
@@ -84,24 +142,27 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
     toast.success(`${label} copied!`);
   };
 
+  const revokeCount = revokedAuthorities.size;
+  const totalFee = activeConfig.fees.tokenCreation + revokeCount * 0.1 + (enableMultisig ? 0.2 : 0);
+
   return (
     <div className="min-h-screen bg-background pt-24 pb-16">
       <div className="container mx-auto px-4 max-w-2xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-3xl font-heading font-bold mb-2">
-            Create <span className="gradient-text">Token</span>
+            Create <span className="gradient-text">GPL Token</span>
           </h1>
-          <p className="text-muted-foreground mb-8">Deploy a new token on {activeConfig.networkName}</p>
+          <p className="text-muted-foreground mb-8">Deploy a GPL-standard token on {activeConfig.networkName}</p>
 
           {/* Progress */}
-          <div className="flex items-center gap-2 mb-10">
+          <div className="flex items-center gap-1 mb-10 overflow-x-auto">
             {STEPS.map((s, i) => (
-              <div key={s} className="flex items-center gap-2 flex-1">
-                <div className={`step-indicator ${i < step ? "step-indicator-completed" : i === step ? "step-indicator-active" : "step-indicator-pending"}`}>
+              <div key={s} className="flex items-center gap-1 flex-1 min-w-0">
+                <div className={`step-indicator shrink-0 ${i < step ? "step-indicator-completed" : i === step ? "step-indicator-active" : "step-indicator-pending"}`}>
                   {i < step ? <Check className="w-4 h-4" /> : i + 1}
                 </div>
-                <span className={`text-xs hidden sm:block ${i === step ? "text-foreground" : "text-muted-foreground"}`}>{s}</span>
-                {i < STEPS.length - 1 && <div className={`flex-1 h-px ${i < step ? "bg-success" : "bg-border"}`} />}
+                <span className={`text-xs hidden md:block truncate ${i === step ? "text-foreground" : "text-muted-foreground"}`}>{s}</span>
+                {i < STEPS.length - 1 && <div className={`flex-1 h-px ${i < step ? "bg-[hsl(var(--success))]" : "bg-border"}`} />}
               </div>
             ))}
           </div>
@@ -128,6 +189,10 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
                     <Input value={form.totalSupply} onChange={(e) => updateField("totalSupply", e.target.value)} className="mt-1.5 bg-muted/50 border-border/50" placeholder="1000000000" />
                   </div>
                 </div>
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs text-muted-foreground flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary shrink-0" />
+                  This token follows the <strong className="text-foreground">GPL Token Program Standard</strong> with full authority model.
+                </div>
               </motion.div>
             )}
 
@@ -140,17 +205,8 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
                 <div>
                   <Label>Token Logo (PNG/JPG) *</Label>
                   <div className="mt-1.5">
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                      id="logo-upload"
-                    />
-                    <label
-                      htmlFor="logo-upload"
-                      className="flex items-center gap-3 p-4 rounded-xl border border-dashed border-border/50 bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-all cursor-pointer"
-                    >
+                    <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoUpload} className="hidden" id="logo-upload" />
+                    <label htmlFor="logo-upload" className="flex items-center gap-3 p-4 rounded-xl border border-dashed border-border/50 bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-all cursor-pointer">
                       {logoPreview ? (
                         <img src={logoPreview} alt="Token logo" className="w-14 h-14 rounded-xl object-cover ring-2 ring-primary/30" />
                       ) : (
@@ -182,46 +238,166 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
               </motion.div>
             )}
 
+            {/* GPL Authority Settings */}
             {step === 2 && (
-              <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-5">
-                <h3 className="font-heading font-semibold text-lg">Authority Settings</h3>
-                <p className="text-sm text-muted-foreground">Control minting and freezing permissions for your token.</p>
+              <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="w-5 h-5 text-primary" />
+                  <h3 className="font-heading font-semibold text-lg">GPL Authority Settings</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Configure which authorities to revoke at deployment. Revoked authorities are <strong>permanent</strong> and increase buyer confidence.
+                </p>
 
-                <button
-                  onClick={() => setRevokeFreeze(!revokeFreeze)}
-                  className={`w-full flex items-start gap-4 p-4 rounded-xl border transition-all text-left ${revokeFreeze ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"}`}
-                >
-                  <div className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 ${revokeFreeze ? "border-primary bg-primary" : "border-muted-foreground"}`}>
-                    {revokeFreeze && <Check className="w-3 h-3 text-primary-foreground" />}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm">Revoke Freeze Authority <span className="text-xs text-warning ml-1">(Required for LP)</span></p>
-                    <p className="text-xs text-muted-foreground mt-1">Allows you to create a liquidity pool. Cost: 0.1 GYDS</p>
-                  </div>
-                </button>
+                <div className="space-y-3">
+                  {REVOCABLE_AUTHORITIES.map((authType) => {
+                    const info = AUTHORITY_LABELS[authType];
+                    const isRevoked = revokedAuthorities.has(authType);
+                    return (
+                      <button
+                        key={authType}
+                        onClick={() => toggleAuthority(authType)}
+                        className={`w-full flex items-start gap-3 p-4 rounded-xl border transition-all text-left ${
+                          isRevoked ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"
+                        }`}
+                      >
+                        <div className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 ${isRevoked ? "border-primary bg-primary" : "border-muted-foreground"}`}>
+                          {isRevoked && <Check className="w-3 h-3 text-primary-foreground" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{info.icon}</span>
+                            <p className="font-semibold text-sm">
+                              Revoke {info.label}
+                              {authType === "freeze" && <span className="text-xs text-[hsl(var(--warning))] ml-1">(Required for LP)</span>}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">{info.description}. Cost: 0.1 GYDS</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                <button
-                  onClick={() => setRevokeMint(!revokeMint)}
-                  className={`w-full flex items-start gap-4 p-4 rounded-xl border transition-all text-left ${revokeMint ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"}`}
-                >
-                  <div className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 ${revokeMint ? "border-primary bg-primary" : "border-muted-foreground"}`}>
-                    {revokeMint && <Check className="w-3 h-3 text-primary-foreground" />}
+                {/* Non-revocable authorities info */}
+                <div className="bg-muted/30 rounded-lg p-3 text-sm space-y-2">
+                  <p className="font-medium text-xs text-muted-foreground uppercase tracking-wider">Always Active</p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{AUTHORITY_LABELS.owner.icon}</span>
+                    <span><strong>{AUTHORITY_LABELS.owner.label}</strong> — {AUTHORITY_LABELS.owner.description}</span>
                   </div>
-                  <div>
-                    <p className="font-semibold text-sm">Revoke Mint Authority</p>
-                    <p className="text-xs text-muted-foreground mt-1">Ensures no more tokens can be minted. Provides security to buyers. Cost: 0.1 GYDS</p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{AUTHORITY_LABELS.program.icon}</span>
+                    <span><strong>{AUTHORITY_LABELS.program.label}</strong> — {AUTHORITY_LABELS.program.description}</span>
                   </div>
-                </button>
-
-                <div className="bg-muted/30 rounded-lg p-3 text-sm text-muted-foreground">
-                  <p>You can also revoke mint authority later from the Dashboard.</p>
                 </div>
               </motion.div>
             )}
 
-            {step === 3 && !deployed && (
-              <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
-                <h3 className="font-heading font-semibold text-lg mb-4">Token Preview</h3>
+            {/* Multisig Setup */}
+            {step === 3 && (
+              <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-5">
+                <h3 className="font-heading font-semibold text-lg">Multisig Authority (Optional)</h3>
+                <p className="text-sm text-muted-foreground">
+                  Transfer selected authorities to a multisig PDA requiring multiple signers to approve changes.
+                </p>
+
+                <button
+                  onClick={() => setEnableMultisig(!enableMultisig)}
+                  className={`w-full flex items-start gap-3 p-4 rounded-xl border transition-all text-left ${
+                    enableMultisig ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"
+                  }`}
+                >
+                  <div className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 ${enableMultisig ? "border-primary bg-primary" : "border-muted-foreground"}`}>
+                    {enableMultisig && <Check className="w-3 h-3 text-primary-foreground" />}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Enable Multisig Authority</p>
+                    <p className="text-xs text-muted-foreground mt-1">Create a multisig PDA to control token authorities. Cost: 0.2 GYDS</p>
+                  </div>
+                </button>
+
+                {enableMultisig && (
+                  <div className="space-y-4 border-t border-border/30 pt-4">
+                    {/* Threshold */}
+                    <div>
+                      <Label>Approval Threshold (m of n)</Label>
+                      <Input
+                        type="number"
+                        value={multisigThreshold}
+                        onChange={(e) => setMultisigThreshold(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="mt-1.5 bg-muted/50 border-border/50 w-24"
+                        min={1}
+                        max={multisigSigners.length}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {multisigThreshold} of {multisigSigners.filter((s) => s.length > 0).length} signers required
+                      </p>
+                    </div>
+
+                    {/* Signers */}
+                    <div>
+                      <Label>Signer Addresses</Label>
+                      <div className="space-y-2 mt-1.5">
+                        {multisigSigners.map((signer, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <Input
+                              value={signer}
+                              onChange={(e) => updateSigner(idx, e.target.value)}
+                              placeholder="0x..."
+                              className="bg-muted/50 border-border/50 font-mono text-sm"
+                            />
+                            {multisigSigners.length > 1 && (
+                              <Button variant="ghost" size="icon" onClick={() => removeSigner(idx)} className="shrink-0">
+                                <Trash2 className="w-4 h-4 text-muted-foreground" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                        <Button variant="outline" size="sm" onClick={addSigner} className="border-border/50 text-xs gap-1">
+                          <Plus className="w-3 h-3" /> Add Signer
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Controlled Authorities */}
+                    <div>
+                      <Label>Authorities Controlled by Multisig</Label>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {(["mint", "freeze", "burn", "close", "update", "delegate"] as AuthorityType[]).map((authType) => {
+                          const info = AUTHORITY_LABELS[authType];
+                          const isSelected = multisigAuthorities.has(authType);
+                          const isRevoked = revokedAuthorities.has(authType);
+                          return (
+                            <button
+                              key={authType}
+                              onClick={() => !isRevoked && toggleMultisigAuthority(authType)}
+                              disabled={isRevoked}
+                              className={`flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs transition-all ${
+                                isRevoked
+                                  ? "opacity-40 cursor-not-allowed border-border/30 bg-muted/20"
+                                  : isSelected
+                                  ? "border-primary bg-primary/10"
+                                  : "border-border/50 bg-muted/30 hover:border-primary/30"
+                              }`}
+                            >
+                              <span>{info.icon}</span>
+                              <span className="font-medium">{info.label.replace(" Authority", "")}</span>
+                              {isRevoked && <span className="text-[0.6rem] text-muted-foreground ml-auto">Revoked</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Preview */}
+            {step === 4 && !deployed && (
+              <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
+                <h3 className="font-heading font-semibold text-lg mb-4">GPL Token Preview</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   {[
                     ["Name", form.name],
@@ -235,41 +411,78 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
                     </div>
                   ))}
                 </div>
+
                 {form.description && (
                   <div className="bg-muted/30 rounded-lg p-3 text-sm">
                     <span className="text-muted-foreground text-xs">Description</span>
                     <p className="mt-0.5">{form.description}</p>
                   </div>
                 )}
-                {(revokeFreeze || revokeMint) && (
-                  <div className="bg-muted/30 rounded-lg p-3 text-sm space-y-1">
-                    {revokeFreeze && <p>✅ Freeze authority will be revoked (+0.1 GYDS)</p>}
-                    {revokeMint && <p>✅ Mint authority will be revoked (+0.1 GYDS)</p>}
+
+                {/* Authority Summary */}
+                <div className="bg-muted/30 rounded-lg p-3 text-sm space-y-1.5">
+                  <p className="font-medium text-xs text-muted-foreground uppercase tracking-wider mb-2">GPL Authorities</p>
+                  {REVOCABLE_AUTHORITIES.map((authType) => {
+                    const isRevoked = revokedAuthorities.has(authType);
+                    const isMultisig = enableMultisig && multisigAuthorities.has(authType) && !isRevoked;
+                    return (
+                      <div key={authType} className="flex items-center gap-2 text-xs">
+                        <span>{AUTHORITY_LABELS[authType].icon}</span>
+                        <span className="flex-1">{AUTHORITY_LABELS[authType].label}</span>
+                        {isRevoked ? (
+                          <span className="text-destructive font-medium">🚫 Revoked</span>
+                        ) : isMultisig ? (
+                          <span className="text-primary font-medium">🔐 Multisig</span>
+                        ) : (
+                          <span className="text-[hsl(var(--success))] font-medium">✅ Creator</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center gap-2 text-xs pt-1 border-t border-border/20">
+                    <span>{AUTHORITY_LABELS.program.icon}</span>
+                    <span className="flex-1">{AUTHORITY_LABELS.program.label}</span>
+                    <span className="text-secondary-foreground font-mono text-[0.65rem]">PDA</span>
+                  </div>
+                </div>
+
+                {enableMultisig && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm space-y-1">
+                    <p className="font-medium text-xs">🔐 Multisig: {multisigThreshold} of {multisigSigners.filter((s) => s.length > 0).length} signers</p>
+                    {multisigSigners.filter((s) => s.length > 0).map((s, i) => (
+                      <p key={i} className="font-mono text-xs text-muted-foreground truncate">Signer {i + 1}: {s}</p>
+                    ))}
                   </div>
                 )}
-                <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 text-sm text-warning">
-                  ⚠️ Total fee: {(activeConfig.fees.tokenCreation + (revokeFreeze ? 0.1 : 0) + (revokeMint ? 0.1 : 0)).toFixed(1)} GYDS
+
+                <div className="bg-[hsl(var(--warning))]/10 border border-[hsl(var(--warning))]/30 rounded-lg p-3 text-sm text-[hsl(var(--warning))]">
+                  ⚠️ Total fee: {totalFee.toFixed(1)} GYDS
+                  <span className="text-xs block mt-1 opacity-80">
+                    Base: {activeConfig.fees.tokenCreation} + Revocations: {(revokeCount * 0.1).toFixed(1)} {enableMultisig && `+ Multisig: 0.2`}
+                  </span>
                 </div>
               </motion.div>
             )}
 
-            {step === 4 && deployed && (
-              <motion.div key="s3" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-6 text-center space-y-6">
-                <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto">
-                  <Check className="w-8 h-8 text-success" />
+            {/* Deployed */}
+            {step === 5 && deployed && (
+              <motion.div key="s5" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-6 text-center space-y-6">
+                <div className="w-16 h-16 rounded-full bg-[hsl(var(--success))]/20 flex items-center justify-center mx-auto">
+                  <Check className="w-8 h-8 text-[hsl(var(--success))]" />
                 </div>
-                <h3 className="font-heading font-bold text-2xl">Token Deployed! 🎉</h3>
+                <h3 className="font-heading font-bold text-2xl">GPL Token Deployed! 🎉</h3>
                 <div className="space-y-3 text-left">
                   {[
                     ["Contract Address", deployed.contractAddress],
                     ["Transaction Hash", deployed.transactionHash],
+                    ...(deployed.gplConfig ? [["PDA Address", deployed.gplConfig.pda.address]] : []),
                   ].map(([label, value]) => (
                     <div key={label} className="bg-muted/30 rounded-lg p-3 flex items-center justify-between">
-                      <div className="text-sm">
+                      <div className="text-sm min-w-0 flex-1">
                         <span className="text-muted-foreground text-xs">{label}</span>
-                        <p className="font-mono text-sm mt-0.5">{value}</p>
+                        <p className="font-mono text-sm mt-0.5 truncate">{value}</p>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 shrink-0">
                         <button onClick={() => copyToClipboard(value, label)} className="p-1.5 rounded-md hover:bg-muted/50">
                           <Copy className="w-4 h-4 text-muted-foreground" />
                         </button>
@@ -280,23 +493,43 @@ const CreateTokenPage = ({ isWalletConnected, onDeploy, isDeploying, onConnectWa
                     </div>
                   ))}
                 </div>
+
+                {/* Authority Summary */}
+                {deployed.gplConfig && (
+                  <div className="bg-muted/30 rounded-lg p-4 text-left space-y-2">
+                    <p className="font-medium text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5" /> GPL Authority Status
+                    </p>
+                    {deployed.gplConfig.authorities.map((auth) => (
+                      <div key={auth.type} className="flex items-center gap-2 text-xs">
+                        <span>{AUTHORITY_LABELS[auth.type].icon}</span>
+                        <span className="flex-1">{AUTHORITY_LABELS[auth.type].label}</span>
+                        {auth.isRevoked ? (
+                          <span className="text-destructive">Revoked</span>
+                        ) : (
+                          <span className="font-mono text-muted-foreground truncate max-w-[120px]">{auth.address.slice(0, 8)}...</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
 
           {/* Navigation */}
-          {step < 4 && (
+          {step < 5 && (
             <div className="flex justify-between mt-6">
               <Button variant="outline" onClick={() => setStep((s) => s - 1)} disabled={step === 0} className="border-border/50">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
-              {step < 3 ? (
+              {step < 4 ? (
                 <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()} className="btn-gradient">
                   Next <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
                 <Button onClick={handleDeploy} disabled={isDeploying} className="btn-gradient">
-                  {isDeploying ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Deploying...</> : "Deploy Token 🚀"}
+                  {isDeploying ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Deploying...</> : "Deploy GPL Token 🚀"}
                 </Button>
               )}
             </div>

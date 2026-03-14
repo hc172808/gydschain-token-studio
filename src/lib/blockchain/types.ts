@@ -17,6 +17,8 @@ export interface DeployedToken extends TokenMetadata {
   createdAt: string;
   isPaused: boolean;
   currentSupply: string;
+  /** GPL token authority configuration */
+  gplConfig?: import("./gplAuthority").GPLTokenConfig;
 }
 
 export interface WalletState {
@@ -28,7 +30,7 @@ export interface WalletState {
 
 export interface Transaction {
   hash: string;
-  type: "create" | "mint" | "burn" | "transfer" | "pause";
+  type: "create" | "mint" | "burn" | "transfer" | "pause" | "set_authority" | "revoke_authority" | "create_multisig";
   tokenSymbol: string;
   amount?: string;
   timestamp: string;
