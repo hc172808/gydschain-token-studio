@@ -26,8 +26,11 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const AppContent = () => {
-  const { wallet, connect, disconnect, isConnecting } = useWallet();
-  const { tokens, transactions, deployToken, burnTokens, swapTokens, transferTokens, isDeploying } = useTokens();
+  const { wallet, connect, disconnect, isConnecting, getRawProvider, getFullAddress } = useWallet();
+  const { tokens, transactions, deployToken, burnTokens, swapTokens, transferTokens, isDeploying } = useTokens({
+    provider: getRawProvider(),
+    walletAddress: getFullAddress(),
+  });
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
 
@@ -70,7 +73,7 @@ const AppContent = () => {
         />
         <Route
           path="/dashboard"
-          element={<DashboardPage tokens={tokens} transactions={transactions} isWalletConnected={wallet.isConnected} onTransferTokens={transferTokens} />}
+          element={<DashboardPage tokens={tokens} transactions={transactions} isWalletConnected={wallet.isConnected} walletAddress={wallet.address} walletBalance={wallet.balance} onTransferTokens={transferTokens} onConnectWallet={handleOpenWalletModal} />}
         />
         <Route path="/gallery" element={<GalleryPage tokens={tokens} />} />
         <Route
