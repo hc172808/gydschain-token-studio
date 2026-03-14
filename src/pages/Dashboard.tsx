@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Copy, ExternalLink, Flame, Coins, Pause, Play, Send, Radio, Wallet } from "lucide-react";
+import { Copy, ExternalLink, Flame, Coins, Pause, Play, Send, Radio, Wallet, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { TransferDialog } from "@/components/TransferDialog";
 import type { DeployedToken, Transaction } from "@/lib/blockchain/types";
 import { getExplorerUrl } from "@/lib/blockchain/config";
 import { useGydsWebSocket } from "@/hooks/useGydsWebSocket";
+import { AUTHORITY_LABELS } from "@/lib/blockchain/gplAuthority";
 
 interface DashboardPageProps {
   tokens: DeployedToken[];
