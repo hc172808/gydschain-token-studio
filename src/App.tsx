@@ -26,9 +26,9 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const AppContent = () => {
-  const { wallet, connect, disconnect, isConnecting, getProvider, getFullAddress } = useWallet();
-  const { tokens, transactions, deployToken, burnTokens, swapTokens, transferTokens, isDeploying, pendingTxHashes } = useTokens({
-    provider: getProvider(),
+  const { wallet, connect, disconnect, isConnecting, getRawProvider, getFullAddress } = useWallet();
+  const { tokens, transactions, deployToken, burnTokens, swapTokens, transferTokens, isDeploying } = useTokens({
+    provider: getRawProvider(),
     walletAddress: getFullAddress(),
   });
   const [walletModalOpen, setWalletModalOpen] = useState(false);
