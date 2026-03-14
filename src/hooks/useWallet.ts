@@ -195,5 +195,14 @@ export const useWallet = () => {
     }
   }, [wallet.isConnected, fetchBalance]);
 
-  return { wallet, connect, disconnect, isConnecting, rpcStatus, activeRpcUrl };
+  /** Get the raw provider ref for downstream hooks */
+  const getProvider = useCallback(() => providerRef.current, []);
+
+  /** Get the full (non-shortened) wallet address */
+  const getFullAddress = useCallback(() => {
+    if (!providerRef.current) return null;
+    return (providerRef.current as EthereumProvider & { _fullAddress?: string })._fullAddress ?? null;
+  }, []);
+
+  return { wallet, connect, disconnect, isConnecting, rpcStatus, activeRpcUrl, getProvider, getFullAddress };
 };
