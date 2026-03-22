@@ -21,13 +21,14 @@ import BurnAndEarnPage from "./pages/BurnAndEarn";
 import LeaderboardPage from "./pages/Leaderboard";
 import TokenDetailPage from "./pages/TokenDetail";
 import ProfilePage from "./pages/Profile";
+import AdminPage from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { wallet, connect, disconnect, isConnecting, getRawProvider, getFullAddress } = useWallet();
-  const { tokens, transactions, deployToken, burnTokens, swapTokens, transferTokens, isDeploying } = useTokens({
+  const { tokens, transactions, deployToken, burnTokens, swapTokens, transferTokens, updateTokenMetadata, isDeploying } = useTokens({
     provider: getRawProvider(),
     walletAddress: getFullAddress(),
   });
@@ -66,6 +67,7 @@ const AppContent = () => {
             <CreateTokenPage
               isWalletConnected={wallet.isConnected}
               walletAddress={wallet.address}
+              walletBalance={wallet.balance}
               onDeploy={deployToken}
               isDeploying={isDeploying}
               onConnectWallet={handleOpenWalletModal}
@@ -128,6 +130,17 @@ const AppContent = () => {
           }
         />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminPage
+              tokens={tokens}
+              transactions={transactions}
+              wallet={wallet}
+              onConnectWallet={handleOpenWalletModal}
+            />
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>
