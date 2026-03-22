@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Copy, ExternalLink, Upload, ArrowLeft, ArrowRight, Loader2, Plus, Trash2, Shield } from "lucide-react";
+import { Check, Copy, ExternalLink, Upload, ArrowLeft, ArrowRight, Loader2, Plus, Trash2, Shield, Wallet } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -11,31 +11,36 @@ import { activeConfig, getExplorerUrl } from "@/lib/blockchain/config";
 import {
   type AuthorityType,
   AUTHORITY_LABELS,
-  buildGPLTokenConfig,
 } from "@/lib/blockchain/gplAuthority";
 
 interface CreateTokenPageProps {
   isWalletConnected: boolean;
   walletAddress?: string | null;
-  onDeploy: (meta: TokenMetadata) => Promise<DeployedToken>;
+  walletBalance?: string;
+  onDeploy: (
+    meta: TokenMetadata,
+    gplOptions?: {
+      revokedAuthorities?: Set<string>;
+      enableMultisig?: boolean;
+      multisigSigners?: string[];
+      multisigThreshold?: number;
+      multisigAuthorities?: string[];
+    }
+  ) => Promise<DeployedToken>;
   isDeploying: boolean;
   onConnectWallet: () => void;
 }
 
 const STEPS = ["Token Info", "Details", "GPL Authority", "Multisig", "Preview", "Deploy"];
-
 const REVOCABLE_AUTHORITIES: AuthorityType[] = ["mint", "freeze", "burn", "close", "update", "delegate"];
 
-const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeploying, onConnectWallet }: CreateTokenPageProps) => {
+const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0", onDeploy, isDeploying, onConnectWallet }: CreateTokenPageProps) => {
   const [step, setStep] = useState(0);
   const [deployed, setDeployed] = useState<DeployedToken | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string>("");
 
-  // Authority state
   const [revokedAuthorities, setRevokedAuthorities] = useState<Set<AuthorityType>>(new Set(["freeze"]));
-
-  // Multisig state
   const [enableMultisig, setEnableMultisig] = useState(false);
   const [multisigThreshold, setMultisigThreshold] = useState(2);
   const [multisigSigners, setMultisigSigners] = useState<string[]>([""]);
@@ -56,14 +61,8 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload a valid image file (PNG, JPG, etc.)");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
-      return;
-    }
+    if (!file.type.startsWith("image/")) { toast.error("Please upload a valid image file (PNG, JPG, etc.)"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
     setLogoFile(file);
     const url = URL.createObjectURL(file);
     setLogoPreview(url);
@@ -75,27 +74,19 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
   };
 
   const toggleAuthority = (type: AuthorityType) => {
-    setRevokedAuthorities((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
-    });
+    setRevokedAuthorities((prev) => { const next = new Set(prev); if (next.has(type)) next.delete(type); else next.add(type); return next; });
   };
 
   const toggleMultisigAuthority = (type: AuthorityType) => {
-    setMultisigAuthorities((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
-    });
+    setMultisigAuthorities((prev) => { const next = new Set(prev); if (next.has(type)) next.delete(type); else next.add(type); return next; });
   };
 
   const addSigner = () => setMultisigSigners((prev) => [...prev, ""]);
   const removeSigner = (idx: number) => setMultisigSigners((prev) => prev.filter((_, i) => i !== idx));
-  const updateSigner = (idx: number, value: string) =>
-    setMultisigSigners((prev) => prev.map((s, i) => (i === idx ? value : s)));
+  const updateSigner = (idx: number, value: string) => setMultisigSigners((prev) => prev.map((s, i) => (i === idx ? value : s)));
+
+  const revokeCount = revokedAuthorities.size;
+  const totalFee = activeConfig.fees.tokenCreation + revokeCount * 0.1 + (enableMultisig ? 0.2 : 0);
 
   const canProceed = () => {
     if (step === 0) return form.name.trim().length >= 2 && form.symbol.trim().length >= 2 && form.symbol.trim().length <= 8;
@@ -108,30 +99,23 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
   };
 
   const handleDeploy = async () => {
-    if (!isWalletConnected) {
-      onConnectWallet();
+    if (!isWalletConnected) { onConnectWallet(); return; }
+    if (Number(walletBalance) < totalFee) {
+      toast.error(`Insufficient balance. You need at least ${totalFee.toFixed(1)} GYDS. Current: ${walletBalance} GYDS`);
       return;
     }
     try {
-      const result = await onDeploy(form);
-
-      // Build GPL config and attach
-      const gplConfig = buildGPLTokenConfig(
-        result.contractAddress,
-        walletAddress || result.creator,
-        {
-          revokeMint: revokedAuthorities.has("mint"),
-          revokeFreeze: revokedAuthorities.has("freeze"),
-          multisigSigners: enableMultisig ? multisigSigners.filter((s) => s.startsWith("0x")) : undefined,
-          multisigThreshold: enableMultisig ? multisigThreshold : undefined,
-          multisigAuthorities: enableMultisig ? Array.from(multisigAuthorities) : undefined,
-        }
-      );
-      result.gplConfig = gplConfig;
+      const result = await onDeploy(form, {
+        revokedAuthorities: revokedAuthorities as Set<string>,
+        enableMultisig,
+        multisigSigners: multisigSigners.filter((s) => s.startsWith("0x")),
+        multisigThreshold,
+        multisigAuthorities: Array.from(multisigAuthorities),
+      });
 
       setDeployed(result);
       setStep(5);
-      toast.success("GPL Token deployed successfully!");
+      toast.success("GPL Token deployed successfully! You are the first holder.");
     } catch {
       toast.error("Deployment failed. Please try again.");
     }
@@ -142,16 +126,25 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
     toast.success(`${label} copied!`);
   };
 
-  const revokeCount = revokedAuthorities.size;
-  const totalFee = activeConfig.fees.tokenCreation + revokeCount * 0.1 + (enableMultisig ? 0.2 : 0);
+  // Wallet guard
+  if (!isWalletConnected) {
+    return (
+      <div className="min-h-screen bg-background pt-24 flex items-center justify-center">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-10 text-center max-w-md">
+          <Wallet className="w-16 h-16 text-primary mx-auto mb-4" />
+          <h2 className="text-2xl font-heading font-bold mb-3">Connect Your Wallet</h2>
+          <p className="text-muted-foreground mb-6">Connect your wallet with GYDS balance to create tokens.</p>
+          <Button onClick={onConnectWallet} className="btn-gradient"><Wallet className="w-4 h-4 mr-2" /> Connect Wallet</Button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pt-24 pb-16">
       <div className="container mx-auto px-4 max-w-2xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-3xl font-heading font-bold mb-2">
-            Create <span className="gradient-text">GPL Token</span>
-          </h1>
+          <h1 className="text-3xl font-heading font-bold mb-2">Create <span className="gradient-text">GPL Token</span></h1>
           <p className="text-muted-foreground mb-8">Deploy a GPL-standard token on {activeConfig.networkName}</p>
 
           {/* Progress */}
@@ -167,8 +160,8 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
             ))}
           </div>
 
-          {/* Steps */}
           <AnimatePresence mode="wait">
+            {/* Step 0: Token Info */}
             {step === 0 && (
               <motion.div key="s0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-5">
                 <div>
@@ -196,6 +189,7 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
               </motion.div>
             )}
 
+            {/* Step 1: Details + Logo */}
             {step === 1 && (
               <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-5">
                 <div>
@@ -238,29 +232,20 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
               </motion.div>
             )}
 
-            {/* GPL Authority Settings */}
+            {/* Step 2: GPL Authority */}
             {step === 2 && (
               <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Shield className="w-5 h-5 text-primary" />
                   <h3 className="font-heading font-semibold text-lg">GPL Authority Settings</h3>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Configure which authorities to revoke at deployment. Revoked authorities are <strong>permanent</strong> and increase buyer confidence.
-                </p>
-
+                <p className="text-sm text-muted-foreground">Configure which authorities to revoke at deployment. Revoked authorities are <strong>permanent</strong>.</p>
                 <div className="space-y-3">
                   {REVOCABLE_AUTHORITIES.map((authType) => {
                     const info = AUTHORITY_LABELS[authType];
                     const isRevoked = revokedAuthorities.has(authType);
                     return (
-                      <button
-                        key={authType}
-                        onClick={() => toggleAuthority(authType)}
-                        className={`w-full flex items-start gap-3 p-4 rounded-xl border transition-all text-left ${
-                          isRevoked ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"
-                        }`}
-                      >
+                      <button key={authType} onClick={() => toggleAuthority(authType)} className={`w-full flex items-start gap-3 p-4 rounded-xl border transition-all text-left ${isRevoked ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"}`}>
                         <div className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 ${isRevoked ? "border-primary bg-primary" : "border-muted-foreground"}`}>
                           {isRevoked && <Check className="w-3 h-3 text-primary-foreground" />}
                         </div>
@@ -278,8 +263,6 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
                     );
                   })}
                 </div>
-
-                {/* Non-revocable authorities info */}
                 <div className="bg-muted/30 rounded-lg p-3 text-sm space-y-2">
                   <p className="font-medium text-xs text-muted-foreground uppercase tracking-wider">Always Active</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -294,20 +277,12 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
               </motion.div>
             )}
 
-            {/* Multisig Setup */}
+            {/* Step 3: Multisig */}
             {step === 3 && (
               <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-5">
                 <h3 className="font-heading font-semibold text-lg">Multisig Authority (Optional)</h3>
-                <p className="text-sm text-muted-foreground">
-                  Transfer selected authorities to a multisig PDA requiring multiple signers to approve changes.
-                </p>
-
-                <button
-                  onClick={() => setEnableMultisig(!enableMultisig)}
-                  className={`w-full flex items-start gap-3 p-4 rounded-xl border transition-all text-left ${
-                    enableMultisig ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"
-                  }`}
-                >
+                <p className="text-sm text-muted-foreground">Transfer selected authorities to a multisig PDA requiring multiple signers.</p>
+                <button onClick={() => setEnableMultisig(!enableMultisig)} className={`w-full flex items-start gap-3 p-4 rounded-xl border transition-all text-left ${enableMultisig ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"}`}>
                   <div className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 ${enableMultisig ? "border-primary bg-primary" : "border-muted-foreground"}`}>
                     {enableMultisig && <Check className="w-3 h-3 text-primary-foreground" />}
                   </div>
@@ -316,51 +291,27 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
                     <p className="text-xs text-muted-foreground mt-1">Create a multisig PDA to control token authorities. Cost: 0.2 GYDS</p>
                   </div>
                 </button>
-
                 {enableMultisig && (
                   <div className="space-y-4 border-t border-border/30 pt-4">
-                    {/* Threshold */}
                     <div>
                       <Label>Approval Threshold (m of n)</Label>
-                      <Input
-                        type="number"
-                        value={multisigThreshold}
-                        onChange={(e) => setMultisigThreshold(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="mt-1.5 bg-muted/50 border-border/50 w-24"
-                        min={1}
-                        max={multisigSigners.length}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {multisigThreshold} of {multisigSigners.filter((s) => s.length > 0).length} signers required
-                      </p>
+                      <Input type="number" value={multisigThreshold} onChange={(e) => setMultisigThreshold(Math.max(1, parseInt(e.target.value) || 1))} className="mt-1.5 bg-muted/50 border-border/50 w-24" min={1} max={multisigSigners.length} />
+                      <p className="text-xs text-muted-foreground mt-1">{multisigThreshold} of {multisigSigners.filter((s) => s.length > 0).length} signers required</p>
                     </div>
-
-                    {/* Signers */}
                     <div>
                       <Label>Signer Addresses</Label>
                       <div className="space-y-2 mt-1.5">
                         {multisigSigners.map((signer, idx) => (
                           <div key={idx} className="flex items-center gap-2">
-                            <Input
-                              value={signer}
-                              onChange={(e) => updateSigner(idx, e.target.value)}
-                              placeholder="0x..."
-                              className="bg-muted/50 border-border/50 font-mono text-sm"
-                            />
+                            <Input value={signer} onChange={(e) => updateSigner(idx, e.target.value)} placeholder="0x..." className="bg-muted/50 border-border/50 font-mono text-sm" />
                             {multisigSigners.length > 1 && (
-                              <Button variant="ghost" size="icon" onClick={() => removeSigner(idx)} className="shrink-0">
-                                <Trash2 className="w-4 h-4 text-muted-foreground" />
-                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => removeSigner(idx)} className="shrink-0"><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
                             )}
                           </div>
                         ))}
-                        <Button variant="outline" size="sm" onClick={addSigner} className="border-border/50 text-xs gap-1">
-                          <Plus className="w-3 h-3" /> Add Signer
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={addSigner} className="border-border/50 text-xs gap-1"><Plus className="w-3 h-3" /> Add Signer</Button>
                       </div>
                     </div>
-
-                    {/* Controlled Authorities */}
                     <div>
                       <Label>Authorities Controlled by Multisig</Label>
                       <div className="grid grid-cols-2 gap-2 mt-2">
@@ -369,18 +320,7 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
                           const isSelected = multisigAuthorities.has(authType);
                           const isRevoked = revokedAuthorities.has(authType);
                           return (
-                            <button
-                              key={authType}
-                              onClick={() => !isRevoked && toggleMultisigAuthority(authType)}
-                              disabled={isRevoked}
-                              className={`flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs transition-all ${
-                                isRevoked
-                                  ? "opacity-40 cursor-not-allowed border-border/30 bg-muted/20"
-                                  : isSelected
-                                  ? "border-primary bg-primary/10"
-                                  : "border-border/50 bg-muted/30 hover:border-primary/30"
-                              }`}
-                            >
+                            <button key={authType} onClick={() => !isRevoked && toggleMultisigAuthority(authType)} disabled={isRevoked} className={`flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs transition-all ${isRevoked ? "opacity-40 cursor-not-allowed border-border/30 bg-muted/20" : isSelected ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30 hover:border-primary/30"}`}>
                               <span>{info.icon}</span>
                               <span className="font-medium">{info.label.replace(" Authority", "")}</span>
                               {isRevoked && <span className="text-[0.6rem] text-muted-foreground ml-auto">Revoked</span>}
@@ -394,32 +334,31 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
               </motion.div>
             )}
 
-            {/* Preview */}
+            {/* Step 4: Preview */}
             {step === 4 && !deployed && (
               <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
                 <h3 className="font-heading font-semibold text-lg mb-4">GPL Token Preview</h3>
+                <div className="flex items-center gap-3 mb-4">
+                  {logoPreview && <img src={logoPreview} alt="Logo" className="w-12 h-12 rounded-full ring-2 ring-primary/30" />}
+                  <div>
+                    <p className="font-heading font-bold text-lg">{form.name}</p>
+                    <p className="text-primary font-mono text-sm">{form.symbol}</p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  {[
-                    ["Name", form.name],
-                    ["Symbol", form.symbol],
-                    ["Decimals", String(form.decimals)],
-                    ["Total Supply", Number(form.totalSupply).toLocaleString()],
-                  ].map(([label, value]) => (
+                  {[["Decimals", String(form.decimals)], ["Total Supply", Number(form.totalSupply).toLocaleString()], ["Creator (1st Holder)", walletAddress || "—"]].map(([label, value]) => (
                     <div key={label} className="bg-muted/30 rounded-lg p-3">
                       <span className="text-muted-foreground text-xs">{label}</span>
-                      <p className="font-medium mt-0.5">{value}</p>
+                      <p className="font-medium mt-0.5 truncate">{value}</p>
                     </div>
                   ))}
                 </div>
-
                 {form.description && (
                   <div className="bg-muted/30 rounded-lg p-3 text-sm">
                     <span className="text-muted-foreground text-xs">Description</span>
                     <p className="mt-0.5">{form.description}</p>
                   </div>
                 )}
-
-                {/* Authority Summary */}
                 <div className="bg-muted/30 rounded-lg p-3 text-sm space-y-1.5">
                   <p className="font-medium text-xs text-muted-foreground uppercase tracking-wider mb-2">GPL Authorities</p>
                   {REVOCABLE_AUTHORITIES.map((authType) => {
@@ -429,23 +368,11 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
                       <div key={authType} className="flex items-center gap-2 text-xs">
                         <span>{AUTHORITY_LABELS[authType].icon}</span>
                         <span className="flex-1">{AUTHORITY_LABELS[authType].label}</span>
-                        {isRevoked ? (
-                          <span className="text-destructive font-medium">🚫 Revoked</span>
-                        ) : isMultisig ? (
-                          <span className="text-primary font-medium">🔐 Multisig</span>
-                        ) : (
-                          <span className="text-[hsl(var(--success))] font-medium">✅ Creator</span>
-                        )}
+                        {isRevoked ? <span className="text-destructive font-medium">🚫 Revoked</span> : isMultisig ? <span className="text-primary font-medium">🔐 Multisig</span> : <span className="text-[hsl(var(--success))] font-medium">✅ Creator</span>}
                       </div>
                     );
                   })}
-                  <div className="flex items-center gap-2 text-xs pt-1 border-t border-border/20">
-                    <span>{AUTHORITY_LABELS.program.icon}</span>
-                    <span className="flex-1">{AUTHORITY_LABELS.program.label}</span>
-                    <span className="text-secondary-foreground font-mono text-[0.65rem]">PDA</span>
-                  </div>
                 </div>
-
                 {enableMultisig && (
                   <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm space-y-1">
                     <p className="font-medium text-xs">🔐 Multisig: {multisigThreshold} of {multisigSigners.filter((s) => s.length > 0).length} signers</p>
@@ -454,23 +381,23 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
                     ))}
                   </div>
                 )}
-
                 <div className="bg-[hsl(var(--warning))]/10 border border-[hsl(var(--warning))]/30 rounded-lg p-3 text-sm text-[hsl(var(--warning))]">
-                  ⚠️ Total fee: {totalFee.toFixed(1)} GYDS
-                  <span className="text-xs block mt-1 opacity-80">
-                    Base: {activeConfig.fees.tokenCreation} + Revocations: {(revokeCount * 0.1).toFixed(1)} {enableMultisig && `+ Multisig: 0.2`}
-                  </span>
+                  ⚠️ Total fee: {totalFee.toFixed(1)} GYDS | Your balance: {walletBalance} GYDS
+                  {Number(walletBalance) < totalFee && (
+                    <span className="block text-destructive text-xs mt-1">⛔ Insufficient balance!</span>
+                  )}
                 </div>
               </motion.div>
             )}
 
-            {/* Deployed */}
+            {/* Step 5: Deployed */}
             {step === 5 && deployed && (
               <motion.div key="s5" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-6 text-center space-y-6">
                 <div className="w-16 h-16 rounded-full bg-[hsl(var(--success))]/20 flex items-center justify-center mx-auto">
                   <Check className="w-8 h-8 text-[hsl(var(--success))]" />
                 </div>
                 <h3 className="font-heading font-bold text-2xl">GPL Token Deployed! 🎉</h3>
+                <p className="text-sm text-muted-foreground">The entire supply has been minted to your wallet. You are the first holder.</p>
                 <div className="space-y-3 text-left">
                   {[
                     ["Contract Address", deployed.contractAddress],
@@ -483,32 +410,20 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
                         <p className="font-mono text-sm mt-0.5 truncate">{value}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <button onClick={() => copyToClipboard(value, label)} className="p-1.5 rounded-md hover:bg-muted/50">
-                          <Copy className="w-4 h-4 text-muted-foreground" />
-                        </button>
-                        <a href={getExplorerUrl(label === "Contract Address" ? "token" : "tx", value)} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-md hover:bg-muted/50">
-                          <ExternalLink className="w-4 h-4 text-muted-foreground" />
-                        </a>
+                        <button onClick={() => copyToClipboard(value, label)} className="p-1.5 rounded-md hover:bg-muted/50"><Copy className="w-4 h-4 text-muted-foreground" /></button>
+                        <a href={getExplorerUrl(label === "Contract Address" ? "token" : "tx", value)} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-md hover:bg-muted/50"><ExternalLink className="w-4 h-4 text-muted-foreground" /></a>
                       </div>
                     </div>
                   ))}
                 </div>
-
-                {/* Authority Summary */}
                 {deployed.gplConfig && (
                   <div className="bg-muted/30 rounded-lg p-4 text-left space-y-2">
-                    <p className="font-medium text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5" /> GPL Authority Status
-                    </p>
+                    <p className="font-medium text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> GPL Authority Status</p>
                     {deployed.gplConfig.authorities.map((auth) => (
                       <div key={auth.type} className="flex items-center gap-2 text-xs">
                         <span>{AUTHORITY_LABELS[auth.type].icon}</span>
                         <span className="flex-1">{AUTHORITY_LABELS[auth.type].label}</span>
-                        {auth.isRevoked ? (
-                          <span className="text-destructive">Revoked</span>
-                        ) : (
-                          <span className="font-mono text-muted-foreground truncate max-w-[120px]">{auth.address.slice(0, 8)}...</span>
-                        )}
+                        {auth.isRevoked ? <span className="text-destructive">Revoked</span> : <span className="font-mono text-muted-foreground truncate max-w-[120px]">{auth.address.slice(0, 8)}...</span>}
                       </div>
                     ))}
                   </div>
@@ -528,7 +443,7 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, onDeploy, isDeployi
                   Next <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
-                <Button onClick={handleDeploy} disabled={isDeploying} className="btn-gradient">
+                <Button onClick={handleDeploy} disabled={isDeploying || Number(walletBalance) < totalFee} className="btn-gradient">
                   {isDeploying ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Deploying...</> : "Deploy GPL Token 🚀"}
                 </Button>
               )}

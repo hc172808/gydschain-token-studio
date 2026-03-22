@@ -19,45 +19,7 @@ import {
   dbTransactionToTransaction,
   isDbConfigured,
 } from "@/lib/dbService";
-
-const MOCK_TOKENS: DeployedToken[] = [
-  {
-    name: "GydsGold",
-    symbol: "GGOLD",
-    decimals: 9,
-    totalSupply: "1000000000",
-    currentSupply: "1000000000",
-    description: "The gold standard token on GydsChain",
-    logoUrl: "",
-    contractAddress: "0xAbC1...dEf2",
-    transactionHash: "0xTx1...Hash",
-    creator: "0x7a3B...9f4E",
-    createdAt: "2026-03-01T12:00:00Z",
-    isPaused: false,
-    website: "https://gydsgold.io",
-    twitter: "@gydsgold",
-  },
-  {
-    name: "NetlifyCoin",
-    symbol: "NTFY",
-    decimals: 9,
-    totalSupply: "500000000",
-    currentSupply: "500000000",
-    description: "Official token of NetlifyGY ecosystem",
-    logoUrl: "",
-    contractAddress: "0xDeF3...gHi4",
-    transactionHash: "0xTx2...Hash",
-    creator: "0x7a3B...9f4E",
-    createdAt: "2026-03-03T08:30:00Z",
-    isPaused: false,
-  },
-];
-
-const MOCK_TRANSACTIONS: Transaction[] = [
-  { hash: "0xTx1...Hash", type: "create", tokenSymbol: "GGOLD", timestamp: "2026-03-01T12:00:00Z", status: "success" },
-  { hash: "0xTx2...Hash", type: "create", tokenSymbol: "NTFY", timestamp: "2026-03-03T08:30:00Z", status: "success" },
-  { hash: "0xTx3...Hash", type: "mint", tokenSymbol: "GGOLD", amount: "5000000", timestamp: "2026-03-04T10:15:00Z", status: "success" },
-];
+import { buildGPLTokenConfig } from "@/lib/blockchain/gplAuthority";
 
 // DEX router address on GydsChain
 const DEX_ROUTER_ADDRESS = "0x0000000000000000000000000000000000000002";
@@ -69,10 +31,11 @@ interface UseTokensOptions {
 
 export const useTokens = (options: UseTokensOptions = {}) => {
   const { provider, walletAddress } = options;
-  const [tokens, setTokens] = useState<DeployedToken[]>(MOCK_TOKENS);
-  const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
+  const [tokens, setTokens] = useState<DeployedToken[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isDeploying, setIsDeploying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const hasLoadedFromDb = useRef(false);
 
   const loadFromDb = useCallback(async () => {
     if (!isDbConfigured()) return;
@@ -84,7 +47,10 @@ export const useTokens = (options: UseTokensOptions = {}) => {
         fetchTokens(network),
         fetchTransactions(network),
       ]);
-      if (dbTokens.length > 0) setTokens(dbTokens.map(dbTokenToDeployedToken));
+      if (dbTokens.length > 0) {
+        setTokens(dbTokens.map(dbTokenToDeployedToken));
+        hasLoadedFromDb.current = true;
+      }
       if (dbTxs.length > 0) setTransactions(dbTxs.map(dbTransactionToTransaction));
     } catch (err) {
       console.warn("[useTokens] Failed to load from DB:", err);
@@ -98,13 +64,24 @@ export const useTokens = (options: UseTokensOptions = {}) => {
 
   /** Deploy a new ERC-20 token with real contract bytecode */
   const deployToken = async (
-    metadata: Omit<DeployedToken, "contractAddress" | "transactionHash" | "creator" | "createdAt" | "isPaused" | "currentSupply">
+    metadata: Omit<DeployedToken, "contractAddress" | "transactionHash" | "creator" | "createdAt" | "isPaused" | "currentSupply">,
+    gplOptions?: {
+      revokedAuthorities?: Set<string>;
+      enableMultisig?: boolean;
+      multisigSigners?: string[];
+      multisigThreshold?: number;
+      multisigAuthorities?: string[];
+    }
   ): Promise<DeployedToken> => {
+    if (!walletAddress) {
+      throw new Error("Wallet not connected. Please connect your wallet first.");
+    }
+
     setIsDeploying(true);
 
     let txHash = "";
     let contractAddress = "";
-    const creatorAddr = walletAddress || "0x7a3B...9f4E";
+    const creatorAddr = walletAddress;
 
     // Try real deployment via wallet
     if (provider && walletAddress) {
@@ -125,10 +102,9 @@ export const useTokens = (options: UseTokensOptions = {}) => {
 
         toast.success("Transaction submitted! Waiting for confirmation...");
 
-        // Wait for receipt to get contract address
         try {
           const receipt = await getTransactionReceipt(provider, txHash, 30, 2000);
-          contractAddress = receipt.contractAddress || `0x${txHash.slice(2, 10)}...${txHash.slice(-8)}`;
+          contractAddress = receipt.contractAddress || `0x${txHash.slice(2, 10)}${txHash.slice(-8)}`;
           
           if (receipt.status === "failed") {
             toast.error("Contract deployment failed on-chain.");
@@ -136,8 +112,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
             toast.success(`Contract deployed at ${contractAddress.slice(0, 10)}...`);
           }
         } catch {
-          // Timeout — use derived address
-          contractAddress = `0x${txHash.slice(2, 10)}...${txHash.slice(-8)}`;
+          contractAddress = `0x${txHash.slice(2, 10)}${txHash.slice(-8)}`;
           toast.info("Couldn't confirm receipt yet. Contract address derived from tx hash.");
         }
 
@@ -151,9 +126,22 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     // Fallback mock
     if (!txHash) {
       await new Promise((r) => setTimeout(r, 2500));
-      txHash = `0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`;
-      contractAddress = `0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`;
+      txHash = `0x${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16)}`;
+      contractAddress = `0x${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16)}`;
     }
+
+    // Build GPL config
+    const gplConfig = buildGPLTokenConfig(
+      contractAddress,
+      creatorAddr,
+      {
+        revokeMint: gplOptions?.revokedAuthorities?.has("mint"),
+        revokeFreeze: gplOptions?.revokedAuthorities?.has("freeze"),
+        multisigSigners: gplOptions?.enableMultisig ? gplOptions.multisigSigners : undefined,
+        multisigThreshold: gplOptions?.enableMultisig ? gplOptions.multisigThreshold : undefined,
+        multisigAuthorities: gplOptions?.enableMultisig ? (gplOptions.multisigAuthorities as any) : undefined,
+      }
+    );
 
     const newToken: DeployedToken = {
       ...metadata,
@@ -163,6 +151,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
       creator: creatorAddr,
       createdAt: new Date().toISOString(),
       isPaused: false,
+      gplConfig,
     };
 
     // Persist to DB
@@ -186,8 +175,8 @@ export const useTokens = (options: UseTokensOptions = {}) => {
           creator_address: newToken.creator,
           network,
           is_paused: false,
-          freeze_revoked: true,
-          mint_revoked: false,
+          freeze_revoked: gplOptions?.revokedAuthorities?.has("freeze") ?? true,
+          mint_revoked: gplOptions?.revokedAuthorities?.has("mint") ?? false,
         }),
         createTransaction({
           hash: newToken.transactionHash,
@@ -218,6 +207,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
 
   /** Burn tokens using real ERC-20 burn function */
   const burnTokens = async (tokenAddress: string, amount: string): Promise<string> => {
+    if (!walletAddress) throw new Error("Wallet not connected");
     const token = tokens.find((t) => t.contractAddress === tokenAddress);
     if (!token) throw new Error("Token not found");
 
@@ -226,7 +216,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     if (provider && walletAddress) {
       try {
         const data = encodeBurnCall(amount, token.decimals);
-        toast.info("Please confirm the burn transaction...");
+        toast.info("Please confirm the burn transaction in your wallet...");
 
         txHash = await sendTransaction(provider, {
           from: walletAddress,
@@ -238,13 +228,12 @@ export const useTokens = (options: UseTokensOptions = {}) => {
         console.info(`[Token] Burned via tx: ${txHash}`);
       } catch (err) {
         console.error("[Token] Burn failed:", err);
-        toast.error("Burn failed. Using mock burn.");
+        throw new Error("Burn transaction rejected or failed");
       }
     }
 
     if (!txHash) {
-      await new Promise((r) => setTimeout(r, 2000));
-      txHash = `0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`;
+      throw new Error("No wallet provider available. Please connect your wallet.");
     }
 
     const newTx: Transaction = {
@@ -264,7 +253,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
         type: "burn",
         token_symbol: token.symbol,
         amount,
-        from_address: walletAddress || "0x7a3B...9f4E",
+        from_address: walletAddress,
         status: "success",
         network,
       });
@@ -282,13 +271,14 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     amountOutMin: string,
     routerAddress = DEX_ROUTER_ADDRESS
   ): Promise<string> => {
+    if (!walletAddress) throw new Error("Wallet not connected");
     let txHash = "";
 
     if (provider && walletAddress) {
       try {
         const amountInWei = BigInt(Math.floor(Number(amountIn) * 1e18)).toString();
         const amountOutMinWei = BigInt(Math.floor(Number(amountOutMin) * 1e18)).toString();
-        const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 min
+        const deadline = Math.floor(Date.now() / 1000) + 1200;
 
         const data = encodeSwapCall(
           amountInWei,
@@ -298,7 +288,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
           deadline
         );
 
-        toast.info("Please confirm the swap transaction...");
+        toast.info("Please confirm the swap transaction in your wallet...");
 
         txHash = await sendTransaction(provider, {
           from: walletAddress,
@@ -311,13 +301,12 @@ export const useTokens = (options: UseTokensOptions = {}) => {
         console.info(`[Swap] Completed via tx: ${txHash}`);
       } catch (err) {
         console.error("[Swap] Transaction failed:", err);
-        toast.error("Swap failed. Using mock swap.");
+        throw new Error("Swap transaction rejected or failed");
       }
     }
 
     if (!txHash) {
-      await new Promise((r) => setTimeout(r, 2000));
-      txHash = `0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`;
+      throw new Error("No wallet provider available. Please connect your wallet.");
     }
 
     return txHash;
@@ -325,6 +314,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
 
   /** Transfer ERC-20 tokens to another address */
   const transferTokens = async (tokenAddress: string, to: string, amount: string): Promise<string> => {
+    if (!walletAddress) throw new Error("Wallet not connected");
     const token = tokens.find((t) => t.contractAddress === tokenAddress);
     if (!token) throw new Error("Token not found");
 
@@ -332,13 +322,12 @@ export const useTokens = (options: UseTokensOptions = {}) => {
 
     if (provider && walletAddress) {
       try {
-        // ERC-20 transfer(address,uint256) selector: 0xa9059cbb
         const amountWei = BigInt(Math.floor(Number(amount) * 10 ** token.decimals));
         const paddedTo = to.replace("0x", "").padStart(64, "0");
         const paddedAmount = amountWei.toString(16).padStart(64, "0");
         const data = `0xa9059cbb${paddedTo}${paddedAmount}`;
 
-        toast.info("Please confirm the transfer transaction...");
+        toast.info("Please confirm the transfer transaction in your wallet...");
 
         const normalizedAddr = tokenAddress.includes("...")
           ? tokenAddress.replace(/\.\.\./g, "0".repeat(32)).slice(0, 42)
@@ -354,13 +343,12 @@ export const useTokens = (options: UseTokensOptions = {}) => {
         console.info(`[Token] Transfer via tx: ${txHash}`);
       } catch (err) {
         console.error("[Token] Transfer failed:", err);
-        toast.error("Transfer failed. Using mock transfer.");
+        throw new Error("Transfer transaction rejected or failed");
       }
     }
 
     if (!txHash) {
-      await new Promise((r) => setTimeout(r, 1500));
-      txHash = `0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`;
+      throw new Error("No wallet provider available. Please connect your wallet.");
     }
 
     const newTx: Transaction = {
@@ -380,7 +368,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
         type: "transfer",
         token_symbol: token.symbol,
         amount,
-        from_address: walletAddress || "0x7a3B...9f4E",
+        from_address: walletAddress,
         to_address: to,
         status: "success",
         network,
@@ -388,6 +376,63 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     }
 
     setTransactions((prev) => [newTx, ...prev]);
+    return txHash;
+  };
+
+  /** Update token metadata (requires Update Authority) */
+  const updateTokenMetadata = async (
+    tokenAddress: string,
+    updates: { name?: string; symbol?: string; logoUrl?: string; description?: string }
+  ): Promise<string> => {
+    if (!walletAddress) throw new Error("Wallet not connected");
+    const token = tokens.find((t) => t.contractAddress === tokenAddress);
+    if (!token) throw new Error("Token not found");
+
+    // Check update authority
+    if (token.gplConfig) {
+      const updateAuth = token.gplConfig.authorities.find((a) => a.type === "update");
+      if (updateAuth?.isRevoked) throw new Error("Update Authority has been revoked");
+    }
+
+    let txHash = "";
+
+    if (provider && walletAddress) {
+      try {
+        // Encode updateMetadata call: selector 0x7c025200
+        const nameHex = Buffer.from(updates.name || token.name).toString("hex").padEnd(64, "0");
+        const symbolHex = Buffer.from(updates.symbol || token.symbol).toString("hex").padEnd(64, "0");
+        const data = `0x7c025200${nameHex}${symbolHex}`;
+
+        toast.info("Please confirm the metadata update in your wallet...");
+
+        const normalizedAddr = tokenAddress.includes("...")
+          ? tokenAddress.replace(/\.\.\./g, "0".repeat(32)).slice(0, 42)
+          : tokenAddress;
+
+        txHash = await sendTransaction(provider, {
+          from: walletAddress,
+          to: normalizedAddr,
+          data,
+        });
+
+        toast.success("Metadata update submitted!");
+      } catch (err) {
+        console.error("[Token] Metadata update failed:", err);
+        throw new Error("Metadata update rejected or failed");
+      }
+    }
+
+    if (!txHash) throw new Error("No wallet provider available");
+
+    // Update local state
+    setTokens((prev) =>
+      prev.map((t) =>
+        t.contractAddress === tokenAddress
+          ? { ...t, ...updates }
+          : t
+      )
+    );
+
     return txHash;
   };
 
@@ -400,6 +445,7 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     burnTokens,
     swapTokens,
     transferTokens,
+    updateTokenMetadata,
     isDeploying,
     isLoading,
     refresh,
