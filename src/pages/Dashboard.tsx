@@ -96,12 +96,8 @@ const DashboardPage = ({
     setNewAuthorityAddress("");
   };
 
-  // Filter tokens by connected wallet
-  const myTokens = tokens.filter((t) => {
-    if (!walletAddress) return true;
-    // Show all tokens for now (user may have tokens from other wallets)
-    return true;
-  });
+  // Show all tokens (user's created tokens + tokens they may hold)
+  const myTokens = tokens;
 
   if (!isWalletConnected) {
     return (
