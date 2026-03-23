@@ -198,11 +198,14 @@ export const useWallet = () => {
   /** Get the raw provider ref for downstream hooks */
   const getRawProvider = useCallback(() => providerRef.current, []);
 
-  /** Get the full (non-shortened) wallet address */
+  /** Get the full (non-shortened) wallet address — falls back to wallet.address for mock wallets */
   const getFullAddress = useCallback(() => {
-    if (!providerRef.current) return null;
-    return (providerRef.current as EthereumProvider & { _fullAddress?: string })._fullAddress ?? null;
-  }, []);
+    if (providerRef.current) {
+      return (providerRef.current as EthereumProvider & { _fullAddress?: string })._fullAddress ?? null;
+    }
+    // For mock wallets, return the stored address
+    return wallet.address;
+  }, [wallet.address]);
 
   return { wallet, connect, disconnect, isConnecting, rpcStatus, activeRpcUrl, getRawProvider, getFullAddress };
 };

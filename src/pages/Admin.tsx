@@ -40,7 +40,7 @@ const AdminPage = ({ tokens, transactions, wallet, onConnectWallet }: AdminPageP
   const [tokenCreationFee, setTokenCreationFee] = useState("0.5");
   const [flaggedTokens, setFlaggedTokens] = useState<Set<string>>(new Set());
 
-  const isAdmin = wallet.isConnected && wallet.address && ADMIN_WALLETS.includes(wallet.address);
+  const isAdmin = wallet.isConnected && isAdminWallet(wallet.address);
 
   if (!wallet.isConnected) {
     return (
