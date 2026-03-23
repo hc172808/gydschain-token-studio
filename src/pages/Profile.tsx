@@ -36,10 +36,14 @@ const ProfilePage = ({ tokens, transactions, wallet, onConnectWallet }: ProfileP
   const allTokens = dbTokens.length > 0 ? dbTokens : tokens;
   const allTransactions = dbTransactions.length > 0 ? dbTransactions : transactions;
 
-  // Filter to user's data
-  const userTokens = allTokens.filter(
-    (t) => wallet.address && t.creator.includes(wallet.address.replace("...", ""))
-  );
+  // Filter to user's data — match full or shortened addresses
+  const userTokens = allTokens.filter((t) => {
+    if (!wallet.address) return false;
+    const addr = wallet.address.replace("...", "");
+    // Match if creator contains the non-ellipsis parts OR exact match
+    return t.creator === wallet.address || t.creator.includes(addr) || 
+           wallet.address.includes(t.creator.slice(0, 6));
+  });
   const userTransactions = allTransactions.slice(0, 20);
 
   const stats = {

@@ -9,9 +9,24 @@ import { toast } from "sonner";
 import type { DeployedToken, Transaction } from "@/lib/blockchain/types";
 
 // Admin wallet addresses — only these can access admin panel
+// Supports both full and shortened addresses
 const ADMIN_WALLETS = [
-  "0x7a3B...9f4E", // Default dev admin
+  "0x7a3B...9f4E", // Default dev admin (mock)
 ];
+
+const isAdminWallet = (address: string | null): boolean => {
+  if (!address) return false;
+  return ADMIN_WALLETS.some((admin) => {
+    if (admin === address) return true;
+    // Match shortened against full: compare prefix and suffix
+    const shortMatch = admin.match(/^(0x[a-fA-F0-9]{4})\.{3}([a-fA-F0-9]{4})$/);
+    if (shortMatch) {
+      return address.toLowerCase().startsWith(shortMatch[1].toLowerCase()) &&
+             address.toLowerCase().endsWith(shortMatch[2].toLowerCase());
+    }
+    return address.toLowerCase() === admin.toLowerCase();
+  });
+};
 
 interface AdminPageProps {
   tokens: DeployedToken[];
@@ -25,7 +40,7 @@ const AdminPage = ({ tokens, transactions, wallet, onConnectWallet }: AdminPageP
   const [tokenCreationFee, setTokenCreationFee] = useState("0.5");
   const [flaggedTokens, setFlaggedTokens] = useState<Set<string>>(new Set());
 
-  const isAdmin = wallet.isConnected && wallet.address && ADMIN_WALLETS.includes(wallet.address);
+  const isAdmin = wallet.isConnected && isAdminWallet(wallet.address);
 
   if (!wallet.isConnected) {
     return (
