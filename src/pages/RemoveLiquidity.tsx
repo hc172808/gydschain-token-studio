@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
+import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 
 interface RemoveLiquidityPageProps {
   isWalletConnected: boolean;
@@ -16,10 +17,16 @@ const RemoveLiquidityPage = ({ isWalletConnected, onConnectWallet }: RemoveLiqui
   const [poolAddress, setPoolAddress] = useState("");
   const [removePercent, setRemovePercent] = useState([50]);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const handleRemove = async () => {
+  const handleRequestRemove = () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
     if (!poolAddress) { toast.error("Enter a pool address"); return; }
+    setShowConfirm(true);
+  };
+
+  const handleRemove = async () => {
+    setShowConfirm(false);
     setIsRemoving(true);
     await new Promise((r) => setTimeout(r, 2500));
     setIsRemoving(false);
@@ -84,12 +91,27 @@ const RemoveLiquidityPage = ({ isWalletConnected, onConnectWallet }: RemoveLiqui
               <span>Removing liquidity may result in impermanent loss. Cost: 0.1 GYDS. For full withdrawal, use MAX.</span>
             </div>
 
-            <Button onClick={handleRemove} disabled={isRemoving || !poolAddress} className="w-full btn-gradient">
+            <Button onClick={handleRequestRemove} disabled={isRemoving || !poolAddress} className="w-full btn-gradient">
               {isRemoving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Removing...</> : <>
                 <Minus className="w-4 h-4 mr-2" />Remove Liquidity
               </>}
             </Button>
           </div>
+
+          <WalletConfirmDialog
+            open={showConfirm}
+            onOpenChange={setShowConfirm}
+            onConfirm={handleRemove}
+            title="Remove Liquidity"
+            description="You are about to withdraw liquidity from this pool."
+            details={[
+              { label: "Pool", value: `${poolAddress.slice(0, 10)}...` },
+              { label: "Remove", value: `${removePercent[0]}%` },
+            ]}
+            fee="0.1"
+            isLoading={isRemoving}
+            variant="destructive"
+          />
         </motion.div>
       </div>
     </div>

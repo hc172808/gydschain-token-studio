@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { activeConfig } from "@/lib/blockchain/config";
+import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 import type { DeployedToken } from "@/lib/blockchain/types";
 import { getPoolInfo, type PoolInfo } from "@/lib/blockchain/indexer";
 
@@ -34,6 +35,7 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
   const [poolType, setPoolType] = useState<"cpmm" | "amm-v4">("cpmm");
   const [existingPool, setExistingPool] = useState<PoolInfo | null>(null);
   const [isLoadingPool, setIsLoadingPool] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const selectedTokenData = tokens.find((t) => t.contractAddress === selectedToken);
 
@@ -70,8 +72,14 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
     ? (Number(gydsAmount) / Number(tokenAmount)).toFixed(8)
     : null;
 
-  const handleCreate = async () => {
+  const handleRequestCreate = () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
+    if (!selectedToken || !tokenAmount || !gydsAmount) { toast.error("Fill all fields"); return; }
+    setShowConfirm(true);
+  };
+
+  const handleCreate = async () => {
+    setShowConfirm(false);
     setIsCreating(true);
     await new Promise((r) => setTimeout(r, 3000));
     setIsCreating(false);
@@ -216,12 +224,29 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
               <span>The amount of GYDS determines the starting price. Pool creation costs 0.5 GYDS. You'll receive LP tokens in return.</span>
             </div>
 
-            <Button onClick={handleCreate} disabled={isCreating || !selectedToken || !tokenAmount || !gydsAmount} className="w-full btn-gradient">
+            <Button onClick={handleRequestCreate} disabled={isCreating || !selectedToken || !tokenAmount || !gydsAmount} className="w-full btn-gradient">
               {isCreating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating Pool...</> : <>
                 <Droplets className="w-4 h-4 mr-2" />Initialize Liquidity Pool
               </>}
             </Button>
           </div>
+
+          <WalletConfirmDialog
+            open={showConfirm}
+            onOpenChange={setShowConfirm}
+            onConfirm={handleCreate}
+            title="Create Liquidity Pool"
+            description="You are about to initialize a new liquidity pool on GydsChain."
+            details={[
+              { label: "Token", value: selectedTokenData?.symbol || "" },
+              { label: "Token Amount", value: Number(tokenAmount).toLocaleString() },
+              { label: "GYDS Amount", value: gydsAmount },
+              { label: "Pool Type", value: poolType === "cpmm" ? "CPMM" : "AMM v4" },
+              { label: "Fee Tier", value: `${feeTier}%` },
+            ]}
+            fee="0.5"
+            isLoading={isCreating}
+          />
         </motion.div>
       </div>
     </div>
