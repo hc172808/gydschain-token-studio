@@ -141,12 +141,30 @@ const BurnTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onBurnToken
               <span>Burning is irreversible. Tokens will be permanently destroyed.</span>
             </div>
 
-            <Button onClick={handleBurn} disabled={isBurning} className="w-full mt-4 bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+            <Button onClick={handleRequestBurn} disabled={isBurning} className="w-full mt-4 bg-destructive hover:bg-destructive/90 text-destructive-foreground">
               {isBurning ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Burning...</> : <><Flame className="w-4 h-4 mr-2" />Burn {burnType === "lp" ? "LP Tokens" : "Tokens"}</>}
             </Button>
           </div>
         </motion.div>
       </div>
+
+      <WalletConfirmDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        onConfirm={handleConfirmedBurn}
+        title="Confirm Burn"
+        description="You are about to permanently destroy tokens. This action cannot be undone."
+        details={burnType === "token" ? [
+          { label: "Token", value: selectedTokenObj?.symbol || selectedToken },
+          { label: "Amount", value: burnAmount },
+        ] : [
+          { label: "LP Address", value: lpAddress ? `${lpAddress.slice(0, 10)}...` : "" },
+          { label: "Burn %", value: `${burnPercent[0]}%` },
+        ]}
+        fee="0.001"
+        isLoading={isBurning}
+        variant="destructive"
+      />
     </div>
   );
 };
