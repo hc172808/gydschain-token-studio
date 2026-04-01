@@ -8,11 +8,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import type { DeployedToken, Transaction } from "@/lib/blockchain/types";
 
-// Admin wallet addresses — only these can access admin panel
-// Supports both full and shortened addresses
-const ADMIN_WALLETS = [
-  "0x7a3B...9f4E", // Default dev admin (mock)
-];
+// Admin wallet addresses — loaded from VITE_ADMIN_WALLETS env var (comma-separated)
+// Falls back to default dev admin if not set
+const ADMIN_WALLETS: string[] = (() => {
+  const envWallets = import.meta.env.VITE_ADMIN_WALLETS;
+  if (envWallets && typeof envWallets === "string") {
+    return envWallets.split(",").map((w: string) => w.trim()).filter(Boolean);
+  }
+  return ["0x7a3B...9f4E"]; // Default dev admin (mock)
+})();
 
 const isAdminWallet = (address: string | null): boolean => {
   if (!address) return false;
