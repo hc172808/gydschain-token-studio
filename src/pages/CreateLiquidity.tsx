@@ -72,8 +72,14 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
     ? (Number(gydsAmount) / Number(tokenAmount)).toFixed(8)
     : null;
 
-  const handleCreate = async () => {
+  const handleRequestCreate = () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
+    if (!selectedToken || !tokenAmount || !gydsAmount) { toast.error("Fill all fields"); return; }
+    setShowConfirm(true);
+  };
+
+  const handleCreate = async () => {
+    setShowConfirm(false);
     setIsCreating(true);
     await new Promise((r) => setTimeout(r, 3000));
     setIsCreating(false);
