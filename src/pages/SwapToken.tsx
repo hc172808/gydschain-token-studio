@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 import { toast } from "sonner";
 import type { DeployedToken } from "@/lib/blockchain/types";
 import { getPoolInfo, calculateSwapOutput, calculatePriceImpact, type PoolInfo } from "@/lib/blockchain/indexer";
@@ -27,6 +28,7 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapToken
   const [poolInfo, setPoolInfo] = useState<PoolInfo | null>(null);
   const [priceImpact, setPriceImpact] = useState<number>(0);
   const [isFetchingPool, setIsFetchingPool] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const allTokens = [
     { symbol: "GYDS", name: "GYDS (Native)" },
@@ -84,10 +86,14 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapToken
     }
   };
 
-  const handleSwap = async () => {
+  const handleRequestSwap = () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
     if (!fromAmount || !toToken) return;
+    setShowConfirm(true);
+  };
 
+  const handleConfirmedSwap = async () => {
+    setShowConfirm(false);
     setIsSwapping(true);
     try {
       const minOut = (Number(toAmount) * (1 - Number(slippage) / 100)).toFixed(6);
@@ -230,12 +236,28 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapToken
               </div>
             )}
 
-            <Button onClick={handleSwap} disabled={isSwapping || !fromAmount || !toToken} className="w-full btn-gradient mt-4">
+            <Button onClick={handleRequestSwap} disabled={isSwapping || !fromAmount || !toToken} className="w-full btn-gradient mt-4">
               {isSwapping ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Swapping...</> : "Swap"}
             </Button>
           </div>
         </motion.div>
       </div>
+
+      <WalletConfirmDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        onConfirm={handleConfirmedSwap}
+        title="Confirm Swap"
+        description="Review your swap details before signing the transaction."
+        details={[
+          { label: "From", value: `${fromAmount} ${fromToken}` },
+          { label: "To (est.)", value: `${toAmount} ${toToken}` },
+          { label: "Slippage", value: `${slippage}%` },
+          { label: "Price Impact", value: `${priceImpact.toFixed(2)}%` },
+        ]}
+        fee="0.001"
+        isLoading={isSwapping}
+      />
     </div>
   );
 };

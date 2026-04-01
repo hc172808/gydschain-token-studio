@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 import { toast } from "sonner";
 import type { DeployedToken } from "@/lib/blockchain/types";
 
@@ -24,15 +25,24 @@ const BurnTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onBurnToken
   const [burnPercent, setBurnPercent] = useState([50]);
   const [lpAddress, setLpAddress] = useState("");
   const [isBurning, setIsBurning] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const handleBurn = async () => {
+  const handleRequestBurn = () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
-
     if (burnType === "token") {
       if (!selectedToken) { toast.error("Select a token to burn"); return; }
       if (!burnAmount || Number(burnAmount) <= 0) { toast.error("Enter a valid amount"); return; }
+    } else {
+      if (!lpAddress) { toast.error("Enter LP token address"); return; }
+    }
+    setShowConfirm(true);
+  };
 
-      setIsBurning(true);
+  const handleConfirmedBurn = async () => {
+    setShowConfirm(false);
+    setIsBurning(true);
+
+    if (burnType === "token") {
       try {
         if (onBurnTokens) {
           const txHash = await onBurnTokens(selectedToken, burnAmount);
@@ -46,17 +56,15 @@ const BurnTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onBurnToken
         console.error("[Burn] Error:", err);
         toast.error("Burn failed. Please try again.");
       }
-      setIsBurning(false);
     } else {
-      if (!lpAddress) { toast.error("Enter LP token address"); return; }
-
-      setIsBurning(true);
       await new Promise((r) => setTimeout(r, 2500));
-      setIsBurning(false);
       toast.success(`Burned ${burnPercent[0]}% LP tokens — liquidity locked!`);
       setLpAddress("");
     }
+    setIsBurning(false);
   };
+
+  const selectedTokenObj = tokens.find((t) => t.contractAddress === selectedToken);
 
   if (!isWalletConnected) {
     return (
@@ -133,12 +141,30 @@ const BurnTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onBurnToken
               <span>Burning is irreversible. Tokens will be permanently destroyed.</span>
             </div>
 
-            <Button onClick={handleBurn} disabled={isBurning} className="w-full mt-4 bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+            <Button onClick={handleRequestBurn} disabled={isBurning} className="w-full mt-4 bg-destructive hover:bg-destructive/90 text-destructive-foreground">
               {isBurning ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Burning...</> : <><Flame className="w-4 h-4 mr-2" />Burn {burnType === "lp" ? "LP Tokens" : "Tokens"}</>}
             </Button>
           </div>
         </motion.div>
       </div>
+
+      <WalletConfirmDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        onConfirm={handleConfirmedBurn}
+        title="Confirm Burn"
+        description="You are about to permanently destroy tokens. This action cannot be undone."
+        details={burnType === "token" ? [
+          { label: "Token", value: selectedTokenObj?.symbol || selectedToken },
+          { label: "Amount", value: burnAmount },
+        ] : [
+          { label: "LP Address", value: lpAddress ? `${lpAddress.slice(0, 10)}...` : "" },
+          { label: "Burn %", value: `${burnPercent[0]}%` },
+        ]}
+        fee="0.001"
+        isLoading={isBurning}
+        variant="destructive"
+      />
     </div>
   );
 };
