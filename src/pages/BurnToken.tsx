@@ -25,15 +25,24 @@ const BurnTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onBurnToken
   const [burnPercent, setBurnPercent] = useState([50]);
   const [lpAddress, setLpAddress] = useState("");
   const [isBurning, setIsBurning] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const handleBurn = async () => {
+  const handleRequestBurn = () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
-
     if (burnType === "token") {
       if (!selectedToken) { toast.error("Select a token to burn"); return; }
       if (!burnAmount || Number(burnAmount) <= 0) { toast.error("Enter a valid amount"); return; }
+    } else {
+      if (!lpAddress) { toast.error("Enter LP token address"); return; }
+    }
+    setShowConfirm(true);
+  };
 
-      setIsBurning(true);
+  const handleConfirmedBurn = async () => {
+    setShowConfirm(false);
+    setIsBurning(true);
+
+    if (burnType === "token") {
       try {
         if (onBurnTokens) {
           const txHash = await onBurnTokens(selectedToken, burnAmount);
@@ -47,17 +56,15 @@ const BurnTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onBurnToken
         console.error("[Burn] Error:", err);
         toast.error("Burn failed. Please try again.");
       }
-      setIsBurning(false);
     } else {
-      if (!lpAddress) { toast.error("Enter LP token address"); return; }
-
-      setIsBurning(true);
       await new Promise((r) => setTimeout(r, 2500));
-      setIsBurning(false);
       toast.success(`Burned ${burnPercent[0]}% LP tokens — liquidity locked!`);
       setLpAddress("");
     }
+    setIsBurning(false);
   };
+
+  const selectedTokenObj = tokens.find((t) => t.contractAddress === selectedToken);
 
   if (!isWalletConnected) {
     return (
