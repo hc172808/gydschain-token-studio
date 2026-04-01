@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 import { toast } from "sonner";
 import type { DeployedToken } from "@/lib/blockchain/types";
 import { getPoolInfo, calculateSwapOutput, calculatePriceImpact, type PoolInfo } from "@/lib/blockchain/indexer";
