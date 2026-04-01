@@ -28,6 +28,7 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapToken
   const [poolInfo, setPoolInfo] = useState<PoolInfo | null>(null);
   const [priceImpact, setPriceImpact] = useState<number>(0);
   const [isFetchingPool, setIsFetchingPool] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const allTokens = [
     { symbol: "GYDS", name: "GYDS (Native)" },
