@@ -86,10 +86,14 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapToken
     }
   };
 
-  const handleSwap = async () => {
+  const handleRequestSwap = () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
     if (!fromAmount || !toToken) return;
+    setShowConfirm(true);
+  };
 
+  const handleConfirmedSwap = async () => {
+    setShowConfirm(false);
     setIsSwapping(true);
     try {
       const minOut = (Number(toAmount) * (1 - Number(slippage) / 100)).toFixed(6);
