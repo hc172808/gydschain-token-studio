@@ -35,6 +35,7 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
   const [poolType, setPoolType] = useState<"cpmm" | "amm-v4">("cpmm");
   const [existingPool, setExistingPool] = useState<PoolInfo | null>(null);
   const [isLoadingPool, setIsLoadingPool] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const selectedTokenData = tokens.find((t) => t.contractAddress === selectedToken);
 
