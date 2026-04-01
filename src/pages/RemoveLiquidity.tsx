@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
+import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 
 interface RemoveLiquidityPageProps {
   isWalletConnected: boolean;

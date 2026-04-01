@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { activeConfig } from "@/lib/blockchain/config";
+import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 import type { DeployedToken } from "@/lib/blockchain/types";
 import { getPoolInfo, type PoolInfo } from "@/lib/blockchain/indexer";
 
