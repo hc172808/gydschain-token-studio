@@ -52,7 +52,20 @@ Once configured, the app will automatically:
 
 Check the browser console for `[DB]` prefixed messages to debug connectivity.
 
-## 4. RLS Policies
+## 4. Admin Configuration
+
+Configure admin wallet addresses via environment variable:
+
+```env
+VITE_ADMIN_WALLETS=0xFullAddress1,0xFullAddress2,0xFullAddress3
+```
+
+- Comma-separated list of full wallet addresses
+- These wallets get access to the `/admin` dashboard
+- If not set, falls back to the default dev mock address
+- Supports both full hex addresses and shortened format (`0x1234...abcd`)
+
+## 5. RLS Policies
 
 The schema includes RLS with public read access for tokens, leaderboard, and analytics.
 For write operations, you may need to add INSERT/UPDATE policies matching your auth setup.
