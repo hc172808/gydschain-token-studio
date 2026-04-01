@@ -17,10 +17,16 @@ const RemoveLiquidityPage = ({ isWalletConnected, onConnectWallet }: RemoveLiqui
   const [poolAddress, setPoolAddress] = useState("");
   const [removePercent, setRemovePercent] = useState([50]);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const handleRemove = async () => {
+  const handleRequestRemove = () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
     if (!poolAddress) { toast.error("Enter a pool address"); return; }
+    setShowConfirm(true);
+  };
+
+  const handleRemove = async () => {
+    setShowConfirm(false);
     setIsRemoving(true);
     await new Promise((r) => setTimeout(r, 2500));
     setIsRemoving(false);
