@@ -236,12 +236,28 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapToken
               </div>
             )}
 
-            <Button onClick={handleSwap} disabled={isSwapping || !fromAmount || !toToken} className="w-full btn-gradient mt-4">
+            <Button onClick={handleRequestSwap} disabled={isSwapping || !fromAmount || !toToken} className="w-full btn-gradient mt-4">
               {isSwapping ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Swapping...</> : "Swap"}
             </Button>
           </div>
         </motion.div>
       </div>
+
+      <WalletConfirmDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        onConfirm={handleConfirmedSwap}
+        title="Confirm Swap"
+        description="Review your swap details before signing the transaction."
+        details={[
+          { label: "From", value: `${fromAmount} ${fromToken}` },
+          { label: "To (est.)", value: `${toAmount} ${toToken}` },
+          { label: "Slippage", value: `${slippage}%` },
+          { label: "Price Impact", value: `${priceImpact.toFixed(2)}%` },
+        ]}
+        fee="0.001"
+        isLoading={isSwapping}
+      />
     </div>
   );
 };
