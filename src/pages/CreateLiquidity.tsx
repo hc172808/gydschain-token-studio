@@ -224,12 +224,29 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
               <span>The amount of GYDS determines the starting price. Pool creation costs 0.5 GYDS. You'll receive LP tokens in return.</span>
             </div>
 
-            <Button onClick={handleCreate} disabled={isCreating || !selectedToken || !tokenAmount || !gydsAmount} className="w-full btn-gradient">
+            <Button onClick={handleRequestCreate} disabled={isCreating || !selectedToken || !tokenAmount || !gydsAmount} className="w-full btn-gradient">
               {isCreating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating Pool...</> : <>
                 <Droplets className="w-4 h-4 mr-2" />Initialize Liquidity Pool
               </>}
             </Button>
           </div>
+
+          <WalletConfirmDialog
+            open={showConfirm}
+            onOpenChange={setShowConfirm}
+            onConfirm={handleCreate}
+            title="Create Liquidity Pool"
+            description="You are about to initialize a new liquidity pool on GydsChain."
+            details={[
+              { label: "Token", value: selectedTokenData?.symbol || "" },
+              { label: "Token Amount", value: Number(tokenAmount).toLocaleString() },
+              { label: "GYDS Amount", value: gydsAmount },
+              { label: "Pool Type", value: poolType === "cpmm" ? "CPMM" : "AMM v4" },
+              { label: "Fee Tier", value: `${feeTier}%` },
+            ]}
+            fee="0.5"
+            isLoading={isCreating}
+          />
         </motion.div>
       </div>
     </div>
