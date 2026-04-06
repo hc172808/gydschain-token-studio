@@ -21,6 +21,13 @@ psql -h YOUR_HOST -U YOUR_USER -d YOUR_DB -f sql/002_seed_data.sql
 2. Paste contents of `sql/001_schema.sql` → Run
 3. Paste contents of `sql/002_seed_data.sql` → Run
 
+### Using pgAdmin:
+1. Connect to your PostgreSQL server in pgAdmin
+2. Right-click your database → **Query Tool**
+3. Open or paste contents of `sql/001_schema.sql` → Execute (F5)
+4. Open or paste contents of `sql/002_seed_data.sql` → Execute (F5)
+5. Optionally run `sql/003_insert_policies.sql` for write policies
+
 ## 2. Configure Environment Variables
 
 Create a `.env` file in the project root (or set in your hosting provider):
