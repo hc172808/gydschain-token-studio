@@ -28,22 +28,47 @@ psql -h YOUR_HOST -U YOUR_USER -d YOUR_DB -f sql/002_seed_data.sql
 4. Open or paste contents of `sql/002_seed_data.sql` → Execute (F5)
 5. Optionally run `sql/003_insert_policies.sql` for write policies
 
+#### pgAdmin Connection String Format
+
+When adding a new server in pgAdmin, use these fields:
+
+| Field | Example Value |
+|-------|--------------|
+| **Host** | `localhost` or `db.yourserver.com` |
+| **Port** | `5432` (default PostgreSQL port) |
+| **Database** | `gydschain_db` |
+| **Username** | `postgres` or your db user |
+| **Password** | Your database password |
+
+Connection string format for reference:
+```
+postgresql://USERNAME:PASSWORD@HOST:PORT/DATABASE
+```
+
+Example:
+```
+postgresql://postgres:mypassword@localhost:5432/gydschain_db
+postgresql://admin:secret@db.netlifegy.com:5432/gydschain_production
+```
+
 ## 2. Configure Environment Variables
 
 Create a `.env` file in the project root (or set in your hosting provider):
 
 ```env
-VITE_DB_API_URL=https://your-project.supabase.co
-VITE_DB_API_KEY=your-anon-public-key
+VITE_DB_API_URL=https://your-api-server.com
+VITE_DB_API_KEY=your-api-key
+VITE_ADMIN_WALLETS=0xYourAdminWallet1,0xYourAdminWallet2
 ```
+
+### For pgAdmin / Self-hosted PostgreSQL + PostgREST:
+- Set up [PostgREST](https://postgrest.org) as a REST API layer on top of your PostgreSQL database
+- `VITE_DB_API_URL` = Your PostgREST base URL (e.g., `http://localhost:3000` or `https://api.netlifegy.com`)
+- `VITE_DB_API_KEY` = Your JWT token for PostgREST auth
 
 ### For Supabase:
 - `VITE_DB_API_URL` = Your project URL (e.g., `https://abcdef.supabase.co`)
 - `VITE_DB_API_KEY` = Your **anon/public** key (Settings → API → anon key)
-
-### For PostgREST:
-- `VITE_DB_API_URL` = Your PostgREST base URL
-- `VITE_DB_API_KEY` = Your JWT token for auth
 
 ### For custom REST API:
 - `VITE_DB_API_URL` = Your API base URL
