@@ -22,6 +22,7 @@ import LeaderboardPage from "./pages/Leaderboard";
 import TokenDetailPage from "./pages/TokenDetail";
 import ProfilePage from "./pages/Profile";
 import AdminPage from "./pages/Admin";
+import HostingPage from "./pages/Hosting";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -136,6 +137,15 @@ const AppContent = () => {
             <AdminPage
               tokens={tokens}
               transactions={transactions}
+              wallet={wallet}
+              onConnectWallet={handleOpenWalletModal}
+            />
+          }
+        />
+        <Route
+          path="/hosting"
+          element={
+            <HostingPage
               wallet={wallet}
               onConnectWallet={handleOpenWalletModal}
             />

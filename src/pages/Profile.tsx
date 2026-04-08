@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
   User, Coins, Flame, ArrowLeftRight, Trophy, Copy, ExternalLink,
-  Wallet, TrendingUp, Clock
+  Wallet, TrendingUp, TrendingDown, Clock, RefreshCw, DollarSign
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +18,7 @@ import {
   dbTokenToDeployedToken,
   dbTransactionToTransaction,
 } from "@/lib/dbService";
+import { useTokenPrices } from "@/hooks/useTokenPrices";
 
 interface ProfilePageProps {
   tokens: DeployedToken[];
@@ -36,15 +37,27 @@ const ProfilePage = ({ tokens, transactions, wallet, onConnectWallet }: ProfileP
   const allTokens = dbTokens.length > 0 ? dbTokens : tokens;
   const allTransactions = dbTransactions.length > 0 ? dbTransactions : transactions;
 
-  // Filter to user's data — match full or shortened addresses
   const userTokens = allTokens.filter((t) => {
     if (!wallet.address) return false;
     const addr = wallet.address.replace("...", "");
-    // Match if creator contains the non-ellipsis parts OR exact match
-    return t.creator === wallet.address || t.creator.includes(addr) || 
+    return t.creator === wallet.address || t.creator.includes(addr) ||
            wallet.address.includes(t.creator.slice(0, 6));
   });
   const userTransactions = allTransactions.slice(0, 20);
+
+  // Token price tracking
+  const tokenSymbols = useMemo(() => userTokens.map((t) => t.symbol), [userTokens]);
+  const { prices, isLoading: pricesLoading, calculatePortfolioValue, refreshPrices } = useTokenPrices({
+    symbols: tokenSymbols,
+    enabled: wallet.isConnected && userTokens.length > 0,
+  });
+
+  // Portfolio value calculation
+  const holdings = useMemo(
+    () => userTokens.map((t) => ({ symbol: t.symbol, amount: Number(t.currentSupply) })),
+    [userTokens]
+  );
+  const portfolioValue = calculatePortfolioValue(holdings);
 
   const stats = {
     tokensCreated: userTokens.length,
@@ -144,6 +157,56 @@ const ProfilePage = ({ tokens, transactions, wallet, onConnectWallet }: ProfileP
             </div>
           </div>
 
+          {/* Portfolio Value Card */}
+          {userTokens.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="glass-card p-6 mb-6 border-primary/20"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-primary" />
+                  <h2 className="text-lg font-heading font-semibold">Portfolio Value</h2>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={refreshPrices}
+                  disabled={pricesLoading}
+                  className="text-xs"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 mr-1 ${pricesLoading ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+              </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+                <div>
+                  <p className="text-3xl font-heading font-bold gradient-text">
+                    {portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <span className="text-sm ml-1 text-muted-foreground">GYDS</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Across {userTokens.length} token{userTokens.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <div className="sm:ml-auto grid grid-cols-2 gap-3 text-center">
+                  <div className="bg-muted/20 rounded-lg px-3 py-2">
+                    <p className="text-xs text-muted-foreground">Wallet</p>
+                    <p className="text-sm font-semibold">{wallet.balance} GYDS</p>
+                  </div>
+                  <div className="bg-muted/20 rounded-lg px-3 py-2">
+                    <p className="text-xs text-muted-foreground">Holdings</p>
+                    <p className="text-sm font-semibold">
+                      {portfolioValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} GYDS
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {/* Stats Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
@@ -185,27 +248,60 @@ const ProfilePage = ({ tokens, transactions, wallet, onConnectWallet }: ProfileP
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {userTokens.map((token) => (
-                    <Link
-                      key={token.contractAddress}
-                      to={`/token/${encodeURIComponent(token.contractAddress)}`}
-                      className="glass-card p-4 flex items-center justify-between hover:border-primary/30 transition-colors block"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                          {token.symbol.slice(0, 2)}
+                  {userTokens.map((token) => {
+                    const tokenPrice = prices[token.symbol];
+                    const value = tokenPrice
+                      ? Number(token.currentSupply) * tokenPrice.priceInGyds
+                      : 0;
+                    const change = tokenPrice?.change24h ?? 0;
+                    const isPositive = change >= 0;
+
+                    return (
+                      <Link
+                        key={token.contractAddress}
+                        to={`/token/${encodeURIComponent(token.contractAddress)}`}
+                        className="glass-card p-4 flex items-center justify-between hover:border-primary/30 transition-colors block"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                            {token.logoUrl ? (
+                              <img
+                                src={token.logoUrl}
+                                alt={token.symbol}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              token.symbol.slice(0, 2)
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium">{token.name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{token.symbol}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{token.name}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{token.symbol}</p>
+                        <div className="text-right space-y-0.5">
+                          <p className="font-medium">{Number(token.currentSupply).toLocaleString()}</p>
+                          {tokenPrice && (
+                            <>
+                              <p className="text-xs text-muted-foreground">
+                                ≈ {value.toLocaleString(undefined, { maximumFractionDigits: 2 })} GYDS
+                              </p>
+                              <div className={`flex items-center justify-end gap-0.5 text-xs ${
+                                isPositive ? "text-[hsl(var(--success))]" : "text-destructive"
+                              }`}>
+                                {isPositive ? (
+                                  <TrendingUp className="w-3 h-3" />
+                                ) : (
+                                  <TrendingDown className="w-3 h-3" />
+                                )}
+                                <span>{isPositive ? "+" : ""}{change.toFixed(2)}%</span>
+                              </div>
+                            </>
+                          )}
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">{Number(token.currentSupply).toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">Supply</p>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
