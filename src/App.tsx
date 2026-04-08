@@ -22,6 +22,7 @@ import LeaderboardPage from "./pages/Leaderboard";
 import TokenDetailPage from "./pages/TokenDetail";
 import ProfilePage from "./pages/Profile";
 import AdminPage from "./pages/Admin";
+import HostingPage from "./pages/Hosting";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
