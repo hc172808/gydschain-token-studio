@@ -142,6 +142,15 @@ const AppContent = () => {
             />
           }
         />
+        <Route
+          path="/hosting"
+          element={
+            <HostingPage
+              wallet={wallet}
+              onConnectWallet={handleOpenWalletModal}
+            />
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>
