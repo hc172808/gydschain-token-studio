@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Copy, ExternalLink, Upload, ArrowLeft, ArrowRight, Loader2, Plus, Trash2, Shield, Wallet } from "lucide-react";
+import { Check, Copy, ExternalLink, Upload, ArrowLeft, ArrowRight, Loader2, Plus, Trash2, Shield, Wallet, Globe, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import {
   type AuthorityType,
   AUTHORITY_LABELS,
 } from "@/lib/blockchain/gplAuthority";
+import { WebsiteTemplateGallery, generateTokenWebsite } from "@/components/WebsiteTemplateGallery";
 
 interface CreateTokenPageProps {
   isWalletConnected: boolean;
@@ -25,13 +26,14 @@ interface CreateTokenPageProps {
       multisigSigners?: string[];
       multisigThreshold?: number;
       multisigAuthorities?: string[];
-    }
+    },
+    websiteHtml?: string | null
   ) => Promise<DeployedToken>;
   isDeploying: boolean;
   onConnectWallet: () => void;
 }
 
-const STEPS = ["Token Info", "Details", "GPL Authority", "Multisig", "Preview", "Deploy"];
+const STEPS = ["Token Info", "Details", "Website", "GPL Authority", "Multisig", "Preview", "Deploy"];
 const REVOCABLE_AUTHORITIES: AuthorityType[] = ["mint", "freeze", "burn", "close", "update", "delegate"];
 
 const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0", onDeploy, isDeploying, onConnectWallet }: CreateTokenPageProps) => {
@@ -45,6 +47,12 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
   const [multisigThreshold, setMultisigThreshold] = useState(2);
   const [multisigSigners, setMultisigSigners] = useState<string[]>([""]);
   const [multisigAuthorities, setMultisigAuthorities] = useState<Set<AuthorityType>>(new Set(["mint", "freeze", "update"]));
+
+  // Website step state
+  const [websiteOption, setWebsiteOption] = useState<"template" | "upload" | "skip">("template");
+  const [websiteHtml, setWebsiteHtml] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [showWebsitePreview, setShowWebsitePreview] = useState(false);
 
   const [form, setForm] = useState<TokenMetadata>({
     name: "",
@@ -86,12 +94,42 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
   const updateSigner = (idx: number, value: string) => setMultisigSigners((prev) => prev.map((s, i) => (i === idx ? value : s)));
 
   const revokeCount = revokedAuthorities.size;
-  const totalFee = activeConfig.fees.tokenCreation + revokeCount * 0.1 + (enableMultisig ? 0.2 : 0);
+  const totalFee = activeConfig.fees.tokenCreation + revokeCount * 0.1 + (enableMultisig ? 0.2 : 0) + (websiteOption !== "skip" && websiteHtml ? 0.5 : 0);
+
+  const handleUploadWebsiteHtml = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".html,.htm";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const text = await file.text();
+        setWebsiteHtml(text);
+        setWebsiteOption("upload");
+        setSelectedTemplateId(null);
+        toast.success(`Loaded ${file.name}`);
+      }
+    };
+    input.click();
+  };
+
+  const handleSelectTemplate = (html: string) => {
+    setWebsiteHtml(html);
+    setWebsiteOption("template");
+    // Find template id
+    const templates = ["token-landing", "portfolio", "blog", "landing"];
+    for (const id of templates) {
+      // Simple check - just set the first match
+      setSelectedTemplateId(id);
+      break;
+    }
+  };
 
   const canProceed = () => {
     if (step === 0) return form.name.trim().length >= 2 && form.symbol.trim().length >= 2 && form.symbol.trim().length <= 8;
     if (step === 1) return form.description.trim().length > 0 && Number(form.totalSupply) > 0 && logoFile !== null;
-    if (step === 3 && enableMultisig) {
+    // Step 2 (website) always allows proceed (skip is valid)
+    if (step === 4 && enableMultisig) {
       const validSigners = multisigSigners.filter((s) => s.startsWith("0x") && s.length >= 10);
       return validSigners.length >= 2 && multisigThreshold >= 1 && multisigThreshold <= validSigners.length;
     }
@@ -111,10 +149,10 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
         multisigSigners: multisigSigners.filter((s) => s.startsWith("0x")),
         multisigThreshold,
         multisigAuthorities: Array.from(multisigAuthorities),
-      });
+      }, websiteOption !== "skip" ? websiteHtml : null);
 
       setDeployed(result);
-      setStep(5);
+      setStep(6);
       toast.success("GPL Token deployed successfully! You are the first holder.");
     } catch {
       toast.error("Deployment failed. Please try again.");
@@ -232,9 +270,110 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
               </motion.div>
             )}
 
-            {/* Step 2: GPL Authority */}
+            {/* Step 2: Website */}
             {step === 2 && (
-              <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
+              <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Globe className="w-5 h-5 text-primary" />
+                  <h3 className="font-heading font-semibold text-lg">Token Website</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Create a website for your token. Choose a template, upload your own HTML, or skip for now.
+                </p>
+
+                {/* Option tabs */}
+                <div className="flex gap-2">
+                  {([
+                    { id: "template" as const, label: "Pick Template", icon: "🎨" },
+                    { id: "upload" as const, label: "Upload HTML", icon: "📄" },
+                    { id: "skip" as const, label: "Skip", icon: "⏭️" },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        setWebsiteOption(opt.id);
+                        if (opt.id === "skip") { setWebsiteHtml(null); setSelectedTemplateId(null); }
+                        if (opt.id === "template" && !websiteHtml) {
+                          const autoHtml = generateTokenWebsite(form.name || "My Token", form.symbol || "TKN", form.description || "");
+                          setWebsiteHtml(autoHtml);
+                          setSelectedTemplateId("token-landing");
+                        }
+                      }}
+                      className={`flex-1 p-3 rounded-xl border text-center text-sm transition-all ${
+                        websiteOption === opt.id
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border/50 bg-muted/30 text-muted-foreground hover:border-primary/30"
+                      }`}
+                    >
+                      <span className="text-lg block mb-1">{opt.icon}</span>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {websiteOption === "template" && (
+                  <WebsiteTemplateGallery
+                    onSelectTemplate={(html) => {
+                      setWebsiteHtml(html);
+                    }}
+                    onUploadHtml={handleUploadWebsiteHtml}
+                    selectedTemplateId={selectedTemplateId}
+                    tokenName={form.name}
+                    tokenSymbol={form.symbol}
+                    tokenDescription={form.description}
+                  />
+                )}
+
+                {websiteOption === "upload" && (
+                  <div className="space-y-3">
+                    <Button variant="outline" onClick={handleUploadWebsiteHtml} className="w-full border-dashed border-border/50 gap-2">
+                      <Upload className="w-4 h-4" /> {websiteHtml ? "Replace HTML File" : "Upload HTML File"}
+                    </Button>
+                    {websiteHtml && (
+                      <div className="bg-[hsl(var(--success))]/10 border border-[hsl(var(--success))]/30 rounded-lg p-3 text-sm text-[hsl(var(--success))] flex items-center gap-2">
+                        <Check className="w-4 h-4" /> HTML file loaded ({(new TextEncoder().encode(websiteHtml).length / 1024).toFixed(1)} KB)
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {websiteOption === "skip" && (
+                  <div className="bg-muted/30 rounded-lg p-4 text-sm text-muted-foreground text-center">
+                    <p>No website will be created. You can always add one later from the Hosting page.</p>
+                  </div>
+                )}
+
+                {/* Preview */}
+                {websiteHtml && websiteOption !== "skip" && (
+                  <div>
+                    <Button variant="ghost" size="sm" onClick={() => setShowWebsitePreview(!showWebsitePreview)} className="gap-1.5 text-xs mb-2">
+                      <Eye className="w-3.5 h-3.5" /> {showWebsitePreview ? "Hide" : "Show"} Preview
+                    </Button>
+                    {showWebsitePreview && (
+                      <div className="rounded-xl overflow-hidden border border-border/30">
+                        <iframe
+                          srcDoc={websiteHtml}
+                          className="w-full h-[250px] bg-white"
+                          sandbox="allow-scripts"
+                          title="Website Preview"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {websiteOption !== "skip" && websiteHtml && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs text-muted-foreground flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary shrink-0" />
+                    Website will be deployed to IPFS alongside your token. Additional fee: <strong className="text-foreground">0.5 GYDS</strong>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Step 3: GPL Authority */}
+            {step === 3 && (
+              <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Shield className="w-5 h-5 text-primary" />
                   <h3 className="font-heading font-semibold text-lg">GPL Authority Settings</h3>
@@ -277,9 +416,9 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
               </motion.div>
             )}
 
-            {/* Step 3: Multisig */}
-            {step === 3 && (
-              <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-5">
+            {/* Step 4: Multisig */}
+            {step === 4 && (
+              <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-5">
                 <h3 className="font-heading font-semibold text-lg">Multisig Authority (Optional)</h3>
                 <p className="text-sm text-muted-foreground">Transfer selected authorities to a multisig PDA requiring multiple signers.</p>
                 <button onClick={() => setEnableMultisig(!enableMultisig)} className={`w-full flex items-start gap-3 p-4 rounded-xl border transition-all text-left ${enableMultisig ? "border-primary bg-primary/10" : "border-border/50 bg-muted/30"}`}>
@@ -334,9 +473,9 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
               </motion.div>
             )}
 
-            {/* Step 4: Preview */}
-            {step === 4 && !deployed && (
-              <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
+            {/* Step 5: Preview */}
+            {step === 5 && !deployed && (
+              <motion.div key="s5" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="glass-card p-6 space-y-4">
                 <h3 className="font-heading font-semibold text-lg mb-4">GPL Token Preview</h3>
                 <div className="flex items-center gap-3 mb-4">
                   {logoPreview && <img src={logoPreview} alt="Logo" className="w-12 h-12 rounded-full ring-2 ring-primary/30" />}
@@ -352,6 +491,12 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
                       <p className="font-medium mt-0.5 truncate">{value}</p>
                     </div>
                   ))}
+                  {websiteHtml && websiteOption !== "skip" && (
+                    <div className="bg-muted/30 rounded-lg p-3">
+                      <span className="text-muted-foreground text-xs">Website</span>
+                      <p className="font-medium mt-0.5 flex items-center gap-1"><Globe className="w-3.5 h-3.5 text-primary" /> IPFS Hosted</p>
+                    </div>
+                  )}
                 </div>
                 {form.description && (
                   <div className="bg-muted/30 rounded-lg p-3 text-sm">
@@ -390,9 +535,9 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
               </motion.div>
             )}
 
-            {/* Step 5: Deployed */}
-            {step === 5 && deployed && (
-              <motion.div key="s5" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-6 text-center space-y-6">
+            {/* Step 6: Deployed */}
+            {step === 6 && deployed && (
+              <motion.div key="s6" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-6 text-center space-y-6">
                 <div className="w-16 h-16 rounded-full bg-[hsl(var(--success))]/20 flex items-center justify-center mx-auto">
                   <Check className="w-8 h-8 text-[hsl(var(--success))]" />
                 </div>
@@ -433,12 +578,12 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
           </AnimatePresence>
 
           {/* Navigation */}
-          {step < 5 && (
+          {step < 6 && (
             <div className="flex justify-between mt-6">
               <Button variant="outline" onClick={() => setStep((s) => s - 1)} disabled={step === 0} className="border-border/50">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
-              {step < 4 ? (
+              {step < 5 ? (
                 <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()} className="btn-gradient">
                   Next <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
