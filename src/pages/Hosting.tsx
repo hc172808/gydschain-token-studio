@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Globe, Upload, Wand2, Wallet, HardDrive, Clock, CreditCard,
@@ -29,6 +30,7 @@ interface HostingPageProps {
 }
 
 const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<HostingPlan[]>([]);
   const [sites, setSites] = useState<HostedSite[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -431,7 +433,7 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
                                   </Button>
                                 </a>
                               )}
-                              <Button variant="ghost" size="sm" onClick={() => toast.info("Editor coming soon!")}>
+                              <Button variant="ghost" size="sm" onClick={() => navigate(`/hosting/edit/${site.id}`)}>
                                 <Settings className="w-4 h-4" />
                               </Button>
                             </div>
