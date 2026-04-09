@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Code, Eye, Save, ArrowLeft, Download, Upload, Undo2, Redo2, Palette } from "lucide-react";
+import { Code, Eye, Save, ArrowLeft, Download, Upload, Undo2, Redo2, Palette, LayoutTemplate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useParams, useNavigate } from "react-router-dom";
 import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 import { uploadToIPFS, generateWebsiteTemplate } from "@/lib/hostingService";
+import { WebsiteTemplateGallery, WEBSITE_TEMPLATES } from "@/components/WebsiteTemplateGallery";
 
 interface SiteEditorProps {
   wallet: { address: string | null; balance: string; isConnected: boolean };
@@ -63,11 +65,10 @@ const SiteEditorPage = ({ wallet, onConnectWallet }: SiteEditorProps) => {
   const [isSaving, setIsSaving] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
 
-  // Load site content (mock or from DB)
   useEffect(() => {
     if (siteId && siteId !== "new") {
-      // Load existing site — for now use generated template
       const template = generateWebsiteTemplate(
         `Site ${siteId.slice(0, 8)}`,
         wallet.address || "0x0000"
@@ -81,10 +82,8 @@ const SiteEditorPage = ({ wallet, onConnectWallet }: SiteEditorProps) => {
     }
   }, [siteId, wallet.address]);
 
-  // Update preview
   const getPreviewContent = useCallback(() => {
     if (!cssCode.trim()) return htmlCode;
-    // Inject custom CSS before </head>
     const styleTag = `<style>${cssCode}</style>`;
     if (htmlCode.includes("</head>")) {
       return htmlCode.replace("</head>", `${styleTag}\n</head>`);
@@ -179,6 +178,13 @@ const SiteEditorPage = ({ wallet, onConnectWallet }: SiteEditorProps) => {
     input.click();
   };
 
+  const handleSelectTemplate = (html: string) => {
+    setHtmlCode(html);
+    pushHistory(html);
+    setShowTemplateGallery(false);
+    toast.success("Template applied!");
+  };
+
   const insertTemplate = (type: string) => {
     const templates: Record<string, string> = {
       hero: `
@@ -249,6 +255,9 @@ const SiteEditorPage = ({ wallet, onConnectWallet }: SiteEditorProps) => {
             <Redo2 className="w-4 h-4" />
           </Button>
           <div className="w-px h-5 bg-border/30 mx-1" />
+          <Button variant="ghost" size="sm" onClick={() => setShowTemplateGallery(true)} title="Template Gallery">
+            <LayoutTemplate className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="sm" onClick={handleUploadHtml} title="Upload HTML">
             <Upload className="w-4 h-4" />
           </Button>
@@ -295,7 +304,6 @@ const SiteEditorPage = ({ wallet, onConnectWallet }: SiteEditorProps) => {
 
       {/* Editor + Preview */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Code Editor */}
         {viewMode !== "preview" && (
           <div className={`${viewMode === "split" ? "md:w-1/2" : "w-full"} flex flex-col border-r border-border/20`}>
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "html" | "css")} className="flex flex-col flex-1">
@@ -325,7 +333,6 @@ const SiteEditorPage = ({ wallet, onConnectWallet }: SiteEditorProps) => {
           </div>
         )}
 
-        {/* Live Preview */}
         {viewMode !== "code" && (
           <div className={`${viewMode === "split" ? "md:w-1/2" : "w-full"} flex flex-col`}>
             <div className="h-8 bg-muted/20 flex items-center px-3 text-xs text-muted-foreground">
@@ -340,6 +347,26 @@ const SiteEditorPage = ({ wallet, onConnectWallet }: SiteEditorProps) => {
           </div>
         )}
       </div>
+
+      {/* Template Gallery Dialog */}
+      <Dialog open={showTemplateGallery} onOpenChange={setShowTemplateGallery}>
+        <DialogContent className="glass-card-strong border-border/50 max-w-lg p-0 overflow-hidden">
+          <div className="p-6 pb-3">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-heading font-bold flex items-center gap-2">
+                <LayoutTemplate className="w-5 h-5 text-primary" />
+                Template Gallery
+              </DialogTitle>
+            </DialogHeader>
+          </div>
+          <div className="px-6 pb-6">
+            <WebsiteTemplateGallery
+              onSelectTemplate={handleSelectTemplate}
+              onUploadHtml={() => { setShowTemplateGallery(false); handleUploadHtml(); }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <WalletConfirmDialog
         open={showSaveConfirm}
