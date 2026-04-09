@@ -23,6 +23,7 @@ import TokenDetailPage from "./pages/TokenDetail";
 import ProfilePage from "./pages/Profile";
 import AdminPage from "./pages/Admin";
 import HostingPage from "./pages/Hosting";
+import SiteEditorPage from "./pages/SiteEditor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -146,6 +147,15 @@ const AppContent = () => {
           path="/hosting"
           element={
             <HostingPage
+              wallet={wallet}
+              onConnectWallet={handleOpenWalletModal}
+            />
+          }
+        />
+        <Route
+          path="/hosting/edit/:siteId"
+          element={
+            <SiteEditorPage
               wallet={wallet}
               onConnectWallet={handleOpenWalletModal}
             />

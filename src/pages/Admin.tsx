@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Shield, Users, Coins, Activity, Settings, BarChart3, AlertTriangle } from "lucide-react";
+import { Shield, Users, Coins, Activity, Settings, BarChart3, AlertTriangle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import type { DeployedToken, Transaction } from "@/lib/blockchain/types";
+import AdminHostingTab from "@/components/admin/AdminHostingTab";
 
 // Admin wallet addresses — loaded from VITE_ADMIN_WALLETS env var (comma-separated)
 // Falls back to default dev admin if not set
@@ -127,6 +128,9 @@ const AdminPage = ({ tokens, transactions, wallet, onConnectWallet }: AdminPageP
             <TabsList className="bg-muted/30">
               <TabsTrigger value="tokens">Tokens</TabsTrigger>
               <TabsTrigger value="transactions">Transactions</TabsTrigger>
+              <TabsTrigger value="hosting">
+                <Globe className="w-4 h-4 mr-1" /> Hosting
+              </TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
 
@@ -210,6 +214,10 @@ const AdminPage = ({ tokens, transactions, wallet, onConnectWallet }: AdminPageP
                   </tbody>
                 </table>
               </div>
+            </TabsContent>
+
+            <TabsContent value="hosting">
+              <AdminHostingTab wallet={wallet} />
             </TabsContent>
 
             <TabsContent value="settings">
