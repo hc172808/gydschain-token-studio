@@ -16,7 +16,7 @@ const ADMIN_WALLETS: string[] = (() => {
   if (envWallets && typeof envWallets === "string") {
     return envWallets.split(",").map((w: string) => w.trim()).filter(Boolean);
   }
-  return ["0x7a3B...9f4E"]; // Default dev admin (mock)
+  return ["0x6422d12bfaddee5142bfad21b3006a74d09017b1", "0x7a3B...9f4E"]; // Default admins
 })();
 
 const isAdminWallet = (address: string | null): boolean => {
