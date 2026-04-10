@@ -13,6 +13,7 @@ import {
   AUTHORITY_LABELS,
 } from "@/lib/blockchain/gplAuthority";
 import { WebsiteTemplateGallery, generateTokenWebsite } from "@/components/WebsiteTemplateGallery";
+import HostingTypeSelector, { type HostingType } from "@/components/HostingTypeSelector";
 
 interface CreateTokenPageProps {
   isWalletConnected: boolean;
@@ -53,6 +54,7 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
   const [websiteHtml, setWebsiteHtml] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [showWebsitePreview, setShowWebsitePreview] = useState(false);
+  const [hostingType, setHostingType] = useState<HostingType>("ipfs");
 
   const [form, setForm] = useState<TokenMetadata>({
     name: "",
@@ -127,7 +129,7 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
 
   const canProceed = () => {
     if (step === 0) return form.name.trim().length >= 2 && form.symbol.trim().length >= 2 && form.symbol.trim().length <= 8;
-    if (step === 1) return form.description.trim().length > 0 && Number(form.totalSupply) > 0 && logoFile !== null;
+    if (step === 1) return form.description.trim().length > 0 && Number(form.totalSupply) > 0;
     // Step 2 (website) always allows proceed (skip is valid)
     if (step === 4 && enableMultisig) {
       const validSigners = multisigSigners.filter((s) => s.startsWith("0x") && s.length >= 10);
@@ -363,9 +365,18 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
                 )}
 
                 {websiteOption !== "skip" && websiteHtml && (
-                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs text-muted-foreground flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-primary shrink-0" />
-                    Website will be deployed to IPFS alongside your token. Additional fee: <strong className="text-foreground">0.5 GYDS</strong>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium mb-2">Where should your website be hosted?</p>
+                      <HostingTypeSelector value={hostingType} onChange={setHostingType} compact />
+                    </div>
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs text-muted-foreground flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-primary shrink-0" />
+                      {hostingType === "ipfs"
+                        ? <>Website will be deployed to IPFS alongside your token. Additional fee: <strong className="text-foreground ml-1">0.5 GYDS</strong></>
+                        : <>Website files will be downloaded for you to host on your own server. Additional fee: <strong className="text-foreground ml-1">0.5 GYDS</strong></>
+                      }
+                    </div>
                   </div>
                 )}
               </motion.div>

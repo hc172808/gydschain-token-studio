@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Globe, Upload, Wand2, Wallet, HardDrive, Clock, CreditCard,
-  FileCode, Plus, ExternalLink, Settings, Trash2
+  FileCode, Plus, ExternalLink, Settings, Trash2, Server
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import type {
   HostingPlan,
   HostedSite,
 } from "@/lib/hostingService";
+import HostingTypeSelector, { type HostingType } from "@/components/HostingTypeSelector";
 import {
   fetchHostingPlans,
   fetchUserSites,
@@ -41,6 +42,8 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmAction, setConfirmAction] = useState<"create" | "upload" | "auto">("create");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [hostingType, setHostingType] = useState<HostingType>("ipfs");
+  const [localServerUrl, setLocalServerUrl] = useState("");
 
   // Mock plans when DB not configured
   const defaultPlans: HostingPlan[] = [
@@ -125,8 +128,22 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
         content = `<html><head><title>${name}</title></head><body><h1>${name}</h1></body></html>`;
       }
 
-      // Upload to IPFS
-      const cid = await uploadToIPFS(content, "index.html");
+      let cid: string | null = null;
+
+      if (hostingType === "ipfs") {
+        // Upload to IPFS
+        cid = await uploadToIPFS(content, "index.html");
+      } else {
+        // Local server — generate a download blob
+        const blob = new Blob([content], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${name}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        cid = `local-${Date.now().toString(36)}`;
+      }
 
       // Create site record
       const now = new Date();
@@ -176,9 +193,16 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
         setSites((prev) => [mockSite, ...prev]);
       }
 
-      toast.success(`Website "${name}" deployed to IPFS!`, {
-        description: `CID: ${cid.slice(0, 16)}...`,
-      });
+      toast.success(
+        hostingType === "ipfs"
+          ? `Website "${name}" deployed to IPFS!`
+          : `Website "${name}" ready for local hosting!`,
+        {
+          description: hostingType === "ipfs"
+            ? `CID: ${cid?.slice(0, 16)}...`
+            : "HTML file downloaded. Upload it to your server.",
+        }
+      );
 
       setSiteName("");
       setSubdomain("");
@@ -195,10 +219,12 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
     const action = confirmAction === "auto" ? "Auto-Generate Website" : confirmAction === "upload" ? "Upload Website" : "Create Website";
     return [
       { label: "Action", value: action },
+      { label: "Hosting", value: hostingType === "ipfs" ? "IPFS (Decentralized)" : "Local Server" },
       { label: "Plan", value: selectedPlan?.name || "—" },
       { label: "Storage", value: `${selectedPlan?.storage_limit_mb || 0} MB` },
       { label: "Monthly Cost", value: `${selectedPlan?.price_gyds || 0} GYDS` },
       { label: "Site Name", value: siteName || "Auto-generated" },
+      ...(hostingType === "local" && localServerUrl ? [{ label: "Server URL", value: localServerUrl }] : []),
     ];
   };
 
@@ -228,7 +254,7 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
               Web Hosting
             </h1>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Host your website on IPFS, paid with GYDS tokens. Upload HTML or auto-generate a site.
+              Host your website on IPFS or your own server, paid with GYDS tokens.
             </p>
           </div>
 
@@ -240,6 +266,28 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
 
             {/* Deploy Tab */}
             <TabsContent value="deploy" className="mt-6 space-y-6">
+              {/* Hosting Type */}
+              <div>
+                <h3 className="text-lg font-heading font-semibold mb-4 flex items-center gap-2">
+                  <Server className="w-5 h-5 text-primary" />
+                  Hosting Type
+                </h3>
+                <HostingTypeSelector value={hostingType} onChange={setHostingType} />
+                {hostingType === "local" && (
+                  <div className="mt-4">
+                    <label className="text-sm text-muted-foreground mb-1 block">Your Server URL</label>
+                    <Input
+                      placeholder="https://your-server.com"
+                      value={localServerUrl}
+                      onChange={(e) => setLocalServerUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Your website files will be prepared for download. Deploy them to your server manually.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Plan Selection */}
               <div>
                 <h3 className="text-lg font-heading font-semibold mb-4 flex items-center gap-2">
