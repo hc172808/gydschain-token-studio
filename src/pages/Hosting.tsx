@@ -128,8 +128,22 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
         content = `<html><head><title>${name}</title></head><body><h1>${name}</h1></body></html>`;
       }
 
-      // Upload to IPFS
-      const cid = await uploadToIPFS(content, "index.html");
+      let cid: string | null = null;
+
+      if (hostingType === "ipfs") {
+        // Upload to IPFS
+        cid = await uploadToIPFS(content, "index.html");
+      } else {
+        // Local server — generate a download blob
+        const blob = new Blob([content], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${name}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        cid = `local-${Date.now().toString(36)}`;
+      }
 
       // Create site record
       const now = new Date();
