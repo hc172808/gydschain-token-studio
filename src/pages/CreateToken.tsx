@@ -365,9 +365,18 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
                 )}
 
                 {websiteOption !== "skip" && websiteHtml && (
-                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs text-muted-foreground flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-primary shrink-0" />
-                    Website will be deployed to IPFS alongside your token. Additional fee: <strong className="text-foreground">0.5 GYDS</strong>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium mb-2">Where should your website be hosted?</p>
+                      <HostingTypeSelector value={hostingType} onChange={setHostingType} compact />
+                    </div>
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs text-muted-foreground flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-primary shrink-0" />
+                      {hostingType === "ipfs"
+                        ? <>Website will be deployed to IPFS alongside your token. Additional fee: <strong className="text-foreground ml-1">0.5 GYDS</strong></>
+                        : <>Website files will be downloaded for you to host on your own server. Additional fee: <strong className="text-foreground ml-1">0.5 GYDS</strong></>
+                      }
+                    </div>
                   </div>
                 )}
               </motion.div>
