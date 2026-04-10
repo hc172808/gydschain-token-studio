@@ -212,10 +212,12 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
     const action = confirmAction === "auto" ? "Auto-Generate Website" : confirmAction === "upload" ? "Upload Website" : "Create Website";
     return [
       { label: "Action", value: action },
+      { label: "Hosting", value: hostingType === "ipfs" ? "IPFS (Decentralized)" : "Local Server" },
       { label: "Plan", value: selectedPlan?.name || "—" },
       { label: "Storage", value: `${selectedPlan?.storage_limit_mb || 0} MB` },
       { label: "Monthly Cost", value: `${selectedPlan?.price_gyds || 0} GYDS` },
       { label: "Site Name", value: siteName || "Auto-generated" },
+      ...(hostingType === "local" && localServerUrl ? [{ label: "Server URL", value: localServerUrl }] : []),
     ];
   };
 
