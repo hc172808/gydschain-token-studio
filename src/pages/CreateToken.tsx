@@ -129,7 +129,7 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
 
   const canProceed = () => {
     if (step === 0) return form.name.trim().length >= 2 && form.symbol.trim().length >= 2 && form.symbol.trim().length <= 8;
-    if (step === 1) return form.description.trim().length > 0 && Number(form.totalSupply) > 0 && logoFile !== null;
+    if (step === 1) return form.description.trim().length > 0 && Number(form.totalSupply) > 0;
     // Step 2 (website) always allows proceed (skip is valid)
     if (step === 4 && enableMultisig) {
       const validSigners = multisigSigners.filter((s) => s.startsWith("0x") && s.length >= 10);
