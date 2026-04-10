@@ -193,9 +193,16 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
         setSites((prev) => [mockSite, ...prev]);
       }
 
-      toast.success(`Website "${name}" deployed to IPFS!`, {
-        description: `CID: ${cid.slice(0, 16)}...`,
-      });
+      toast.success(
+        hostingType === "ipfs"
+          ? `Website "${name}" deployed to IPFS!`
+          : `Website "${name}" ready for local hosting!`,
+        {
+          description: hostingType === "ipfs"
+            ? `CID: ${cid?.slice(0, 16)}...`
+            : "HTML file downloaded. Upload it to your server.",
+        }
+      );
 
       setSiteName("");
       setSubdomain("");
