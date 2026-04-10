@@ -13,6 +13,7 @@ import {
   AUTHORITY_LABELS,
 } from "@/lib/blockchain/gplAuthority";
 import { WebsiteTemplateGallery, generateTokenWebsite } from "@/components/WebsiteTemplateGallery";
+import HostingTypeSelector, { type HostingType } from "@/components/HostingTypeSelector";
 
 interface CreateTokenPageProps {
   isWalletConnected: boolean;
@@ -53,6 +54,7 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
   const [websiteHtml, setWebsiteHtml] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [showWebsitePreview, setShowWebsitePreview] = useState(false);
+  const [hostingType, setHostingType] = useState<HostingType>("ipfs");
 
   const [form, setForm] = useState<TokenMetadata>({
     name: "",
