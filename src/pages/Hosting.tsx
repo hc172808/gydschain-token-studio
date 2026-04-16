@@ -45,6 +45,55 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [hostingType, setHostingType] = useState<HostingType>("ipfs");
   const [localServerUrl, setLocalServerUrl] = useState("");
+  const [siteDomains, setSiteDomains] = useState<Record<string, CustomDomain[]>>({});
+  const [expandedSite, setExpandedSite] = useState<string | null>(null);
+
+  const handleAddDomain = async (siteId: string, domain: string) => {
+    const newDomain: CustomDomain = {
+      id: crypto.randomUUID(),
+      domain,
+      status: "pending",
+      isPrimary: false,
+      sslEnabled: false,
+      addedAt: new Date().toISOString(),
+    };
+    setSiteDomains((prev) => ({ ...prev, [siteId]: [...(prev[siteId] || []), newDomain] }));
+  };
+
+  const handleRemoveDomain = async (siteId: string, domainId: string) => {
+    setSiteDomains((prev) => ({
+      ...prev,
+      [siteId]: (prev[siteId] || []).filter((d) => d.id !== domainId),
+    }));
+    toast.success("Domain removed");
+  };
+
+  const handleSetPrimary = async (siteId: string, domainId: string) => {
+    setSiteDomains((prev) => ({
+      ...prev,
+      [siteId]: (prev[siteId] || []).map((d) => ({ ...d, isPrimary: d.id === domainId })),
+    }));
+    toast.success("Primary domain updated");
+  };
+
+  const handleVerifyDomain = async (siteId: string, domainId: string) => {
+    setSiteDomains((prev) => ({
+      ...prev,
+      [siteId]: (prev[siteId] || []).map((d) =>
+        d.id === domainId ? { ...d, status: "verifying" as const } : d
+      ),
+    }));
+    // Simulate verification
+    setTimeout(() => {
+      setSiteDomains((prev) => ({
+        ...prev,
+        [siteId]: (prev[siteId] || []).map((d) =>
+          d.id === domainId ? { ...d, status: "active" as const, sslEnabled: true, verifiedAt: new Date().toISOString() } : d
+        ),
+      }));
+      toast.success("Domain verified and SSL provisioned!");
+    }, 3000);
+  };
 
   // Mock plans when DB not configured
   const defaultPlans: HostingPlan[] = [
