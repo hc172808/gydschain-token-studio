@@ -548,6 +548,32 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
                             </Button>
                           </div>
                         )}
+
+                        {/* Domain Management Toggle */}
+                        <div className="mt-3 border-t border-border/20 pt-3">
+                          <button
+                            onClick={() => setExpandedSite(expandedSite === site.id ? null : site.id)}
+                            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                            <span>Custom Domains ({(siteDomains[site.id] || []).length})</span>
+                            {expandedSite === site.id ? <ChevronUp className="w-3.5 h-3.5 ml-auto" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
+                          </button>
+                          {expandedSite === site.id && (
+                            <div className="mt-3">
+                              <DomainManager
+                                siteId={site.id}
+                                siteName={site.site_name}
+                                subdomain={site.subdomain}
+                                domains={siteDomains[site.id] || []}
+                                onAddDomain={(domain) => handleAddDomain(site.id, domain)}
+                                onRemoveDomain={(domainId) => handleRemoveDomain(site.id, domainId)}
+                                onSetPrimary={(domainId) => handleSetPrimary(site.id, domainId)}
+                                onVerifyDomain={(domainId) => handleVerifyDomain(site.id, domainId)}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </motion.div>
                     );
                   })}
