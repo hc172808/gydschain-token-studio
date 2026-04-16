@@ -505,7 +505,7 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
                   {websiteHtml && websiteOption !== "skip" && (
                     <div className="bg-muted/30 rounded-lg p-3">
                       <span className="text-muted-foreground text-xs">Website</span>
-                      <p className="font-medium mt-0.5 flex items-center gap-1"><Globe className="w-3.5 h-3.5 text-primary" /> IPFS Hosted</p>
+                      <p className="font-medium mt-0.5 flex items-center gap-1"><Globe className="w-3.5 h-3.5 text-primary" /> {hostingType === "ipfs" ? "IPFS Hosted" : "Local Server"}</p>
                     </div>
                   )}
                 </div>
