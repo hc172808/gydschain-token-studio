@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Globe, Upload, Wand2, Wallet, HardDrive, Clock, CreditCard,
-  FileCode, Plus, ExternalLink, Settings, Trash2, Server
+  FileCode, Plus, ExternalLink, Settings, Trash2, Server, ChevronDown, ChevronUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import DomainManager, { type CustomDomain } from "@/components/DomainManager";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
