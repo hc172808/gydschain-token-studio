@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Globe, Upload, Wand2, Wallet, HardDrive, Clock, CreditCard,
-  FileCode, Plus, ExternalLink, Settings, Trash2, Server
+  FileCode, Plus, ExternalLink, Settings, Trash2, Server, ChevronDown, ChevronUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import DomainManager, { type CustomDomain } from "@/components/DomainManager";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -44,6 +45,55 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [hostingType, setHostingType] = useState<HostingType>("ipfs");
   const [localServerUrl, setLocalServerUrl] = useState("");
+  const [siteDomains, setSiteDomains] = useState<Record<string, CustomDomain[]>>({});
+  const [expandedSite, setExpandedSite] = useState<string | null>(null);
+
+  const handleAddDomain = async (siteId: string, domain: string) => {
+    const newDomain: CustomDomain = {
+      id: crypto.randomUUID(),
+      domain,
+      status: "pending",
+      isPrimary: false,
+      sslEnabled: false,
+      addedAt: new Date().toISOString(),
+    };
+    setSiteDomains((prev) => ({ ...prev, [siteId]: [...(prev[siteId] || []), newDomain] }));
+  };
+
+  const handleRemoveDomain = async (siteId: string, domainId: string) => {
+    setSiteDomains((prev) => ({
+      ...prev,
+      [siteId]: (prev[siteId] || []).filter((d) => d.id !== domainId),
+    }));
+    toast.success("Domain removed");
+  };
+
+  const handleSetPrimary = async (siteId: string, domainId: string) => {
+    setSiteDomains((prev) => ({
+      ...prev,
+      [siteId]: (prev[siteId] || []).map((d) => ({ ...d, isPrimary: d.id === domainId })),
+    }));
+    toast.success("Primary domain updated");
+  };
+
+  const handleVerifyDomain = async (siteId: string, domainId: string) => {
+    setSiteDomains((prev) => ({
+      ...prev,
+      [siteId]: (prev[siteId] || []).map((d) =>
+        d.id === domainId ? { ...d, status: "verifying" as const } : d
+      ),
+    }));
+    // Simulate verification
+    setTimeout(() => {
+      setSiteDomains((prev) => ({
+        ...prev,
+        [siteId]: (prev[siteId] || []).map((d) =>
+          d.id === domainId ? { ...d, status: "active" as const, sslEnabled: true, verifiedAt: new Date().toISOString() } : d
+        ),
+      }));
+      toast.success("Domain verified and SSL provisioned!");
+    }, 3000);
+  };
 
   // Mock plans when DB not configured
   const defaultPlans: HostingPlan[] = [
@@ -498,6 +548,32 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
                             </Button>
                           </div>
                         )}
+
+                        {/* Domain Management Toggle */}
+                        <div className="mt-3 border-t border-border/20 pt-3">
+                          <button
+                            onClick={() => setExpandedSite(expandedSite === site.id ? null : site.id)}
+                            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                            <span>Custom Domains ({(siteDomains[site.id] || []).length})</span>
+                            {expandedSite === site.id ? <ChevronUp className="w-3.5 h-3.5 ml-auto" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
+                          </button>
+                          {expandedSite === site.id && (
+                            <div className="mt-3">
+                              <DomainManager
+                                siteId={site.id}
+                                siteName={site.site_name}
+                                subdomain={site.subdomain}
+                                domains={siteDomains[site.id] || []}
+                                onAddDomain={(domain) => handleAddDomain(site.id, domain)}
+                                onRemoveDomain={(domainId) => handleRemoveDomain(site.id, domainId)}
+                                onSetPrimary={(domainId) => handleSetPrimary(site.id, domainId)}
+                                onVerifyDomain={(domainId) => handleVerifyDomain(site.id, domainId)}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </motion.div>
                     );
                   })}
