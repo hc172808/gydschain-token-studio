@@ -109,6 +109,9 @@ const AdminPage = ({ tokens, transactions, wallet, onConnectWallet }: AdminPageP
               <TabsTrigger value="hosting">
                 <Globe className="w-4 h-4 mr-1" /> Hosting
               </TabsTrigger>
+              <TabsTrigger value="dex">
+                <Droplets className="w-4 h-4 mr-1" /> DEX
+              </TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
 
