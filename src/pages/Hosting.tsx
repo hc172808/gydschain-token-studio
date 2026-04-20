@@ -367,6 +367,21 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
   };
 
   const confirmDetails = () => {
+    if (confirmAction === "renew" && renewSiteTarget) {
+      const plan = plans.find((p) => p.id === renewSiteTarget.plan_id);
+      const price = plan?.price_gyds ?? 0.5;
+      const currentExpiry = renewSiteTarget.expires_at ? new Date(renewSiteTarget.expires_at) : new Date();
+      const base = currentExpiry > new Date() ? currentExpiry : new Date();
+      const newExpiry = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+      return [
+        { label: "Action", value: "Renew Subscription" },
+        { label: "Site", value: renewSiteTarget.site_name },
+        { label: "Plan", value: plan?.name ?? "—" },
+        { label: "Extension", value: "+30 days" },
+        { label: "New Expiry", value: newExpiry.toLocaleDateString() },
+        { label: "Cost", value: `${price} GYDS` },
+      ];
+    }
     const action = confirmAction === "auto" ? "Auto-Generate Website" : confirmAction === "upload" ? "Upload Website" : "Create Website";
     return [
       { label: "Action", value: action },
@@ -378,6 +393,10 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
       ...(hostingType === "local" && localServerUrl ? [{ label: "Server URL", value: localServerUrl }] : []),
     ];
   };
+
+  const renewPrice = renewSiteTarget
+    ? plans.find((p) => p.id === renewSiteTarget.plan_id)?.price_gyds ?? 0.5
+    : 0;
 
   if (!wallet.isConnected) {
     return (
@@ -644,7 +663,12 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
                             <p className="text-xs text-destructive">
                               This site has expired. Renew your subscription to keep it active.
                             </p>
-                            <Button size="sm" variant="outline" className="mt-2 border-destructive/30 text-destructive hover:bg-destructive/10">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-2 border-destructive/30 text-destructive hover:bg-destructive/10"
+                              onClick={() => handleRenewClick(site)}
+                            >
                               <CreditCard className="w-3 h-3 mr-1" /> Renew
                             </Button>
                           </div>
@@ -653,7 +677,7 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
                         {/* Domain Management Toggle */}
                         <div className="mt-3 border-t border-border/20 pt-3">
                           <button
-                            onClick={() => setExpandedSite(expandedSite === site.id ? null : site.id)}
+                            onClick={() => handleToggleExpand(site.id)}
                             className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
                           >
                             <Globe className="w-3.5 h-3.5" />
