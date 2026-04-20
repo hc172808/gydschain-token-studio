@@ -47,12 +47,13 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
   const [subdomain, setSubdomain] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<"create" | "upload" | "auto">("create");
+  const [confirmAction, setConfirmAction] = useState<"create" | "upload" | "auto" | "renew">("create");
   const [isProcessing, setIsProcessing] = useState(false);
   const [hostingType, setHostingType] = useState<HostingType>("ipfs");
   const [localServerUrl, setLocalServerUrl] = useState("");
   const [siteDomains, setSiteDomains] = useState<Record<string, CustomDomain[]>>({});
   const [expandedSite, setExpandedSite] = useState<string | null>(null);
+  const [renewSiteTarget, setRenewSiteTarget] = useState<HostedSite | null>(null);
 
   const loadDomainsForSite = async (siteId: string) => {
     if (!isDbConfigured()) return;
