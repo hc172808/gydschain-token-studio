@@ -75,6 +75,19 @@ export interface HostingPayment {
   status: string;
 }
 
+export interface SiteDomain {
+  id: string;
+  site_id: string;
+  domain: string;
+  status: "pending" | "verifying" | "active" | "failed";
+  is_primary: boolean;
+  ssl_enabled: boolean;
+  verification_token: string | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ─── Plans ───────────────────────────────────────────────────
 
 export const fetchHostingPlans = async (): Promise<HostingPlan[]> => {
@@ -153,6 +166,102 @@ export const fetchSitePayments = async (siteId: string): Promise<HostingPayment[
     `/rest/v1/hosting_payments?site_id=eq.${siteId}&order=created_at.desc&select=*`
   );
   return data ?? [];
+};
+
+/** Renew a site for another 30 days. Creates a payment record and extends expires_at. */
+export const renewSite = async (
+  site: HostedSite,
+  payerAddress: string,
+  amountGyds: number,
+  transactionHash?: string
+): Promise<HostedSite | null> => {
+  const now = new Date();
+  // Extend from current expiry if still active, otherwise from now
+  const baseDate = site.expires_at && new Date(site.expires_at) > now
+    ? new Date(site.expires_at)
+    : now;
+  const newExpiry = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  const updated = await updateSite(site.id, {
+    expires_at: newExpiry.toISOString(),
+    is_active: true,
+  });
+
+  if (updated) {
+    await createHostingPayment({
+      site_id: site.id,
+      payer_address: payerAddress,
+      amount_gyds: amountGyds,
+      transaction_hash: transactionHash ?? null,
+      period_start: now.toISOString(),
+      period_end: newExpiry.toISOString(),
+      status: "confirmed",
+    });
+  }
+  return updated;
+};
+
+// ─── Custom Domains ──────────────────────────────────────────
+
+export const fetchSiteDomains = async (siteId: string): Promise<SiteDomain[]> => {
+  const data = await apiFetch<SiteDomain[]>(
+    `/rest/v1/site_domains?site_id=eq.${siteId}&order=created_at.asc&select=*`
+  );
+  return data ?? [];
+};
+
+export const createSiteDomain = async (
+  siteId: string,
+  domain: string
+): Promise<SiteDomain | null> => {
+  const verificationToken = `gyds_verify=${siteId.slice(0, 12)}_${Date.now().toString(36)}`;
+  const data = await apiFetch<SiteDomain[]>(`/rest/v1/site_domains`, {
+    method: "POST",
+    body: JSON.stringify({
+      site_id: siteId,
+      domain,
+      status: "pending",
+      verification_token: verificationToken,
+    }),
+    headers: { Prefer: "return=representation" },
+  });
+  return data?.[0] ?? null;
+};
+
+export const updateSiteDomain = async (
+  domainId: string,
+  updates: Partial<SiteDomain>
+): Promise<SiteDomain | null> => {
+  const data = await apiFetch<SiteDomain[]>(
+    `/rest/v1/site_domains?id=eq.${domainId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ ...updates, updated_at: new Date().toISOString() }),
+      headers: { Prefer: "return=representation" },
+    }
+  );
+  return data?.[0] ?? null;
+};
+
+export const deleteSiteDomain = async (domainId: string): Promise<boolean> => {
+  const res = await apiFetch<unknown>(`/rest/v1/site_domains?id=eq.${domainId}`, {
+    method: "DELETE",
+  });
+  return res !== null;
+};
+
+/** Set one domain as primary, unset others on the same site (client-side coordination). */
+export const setPrimaryDomain = async (
+  siteId: string,
+  domainId: string
+): Promise<void> => {
+  // Unset all primaries on this site
+  await apiFetch(`/rest/v1/site_domains?site_id=eq.${siteId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_primary: false }),
+  });
+  // Set the chosen one
+  await updateSiteDomain(domainId, { is_primary: true });
 };
 
 // ─── IPFS helpers ────────────────────────────────────────────

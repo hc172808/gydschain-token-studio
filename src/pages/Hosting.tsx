@@ -23,6 +23,12 @@ import {
   uploadToIPFS,
   generateWebsiteTemplate,
   createHostingPayment,
+  renewSite,
+  fetchSiteDomains,
+  createSiteDomain,
+  updateSiteDomain,
+  deleteSiteDomain,
+  setPrimaryDomain,
 } from "@/lib/hostingService";
 import { isDbConfigured } from "@/lib/dbService";
 
@@ -41,14 +47,56 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
   const [subdomain, setSubdomain] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<"create" | "upload" | "auto">("create");
+  const [confirmAction, setConfirmAction] = useState<"create" | "upload" | "auto" | "renew">("create");
   const [isProcessing, setIsProcessing] = useState(false);
   const [hostingType, setHostingType] = useState<HostingType>("ipfs");
   const [localServerUrl, setLocalServerUrl] = useState("");
   const [siteDomains, setSiteDomains] = useState<Record<string, CustomDomain[]>>({});
   const [expandedSite, setExpandedSite] = useState<string | null>(null);
+  const [renewSiteTarget, setRenewSiteTarget] = useState<HostedSite | null>(null);
+
+  const loadDomainsForSite = async (siteId: string) => {
+    if (!isDbConfigured()) return;
+    const dbDomains = await fetchSiteDomains(siteId);
+    const mapped: CustomDomain[] = dbDomains.map((d) => ({
+      id: d.id,
+      domain: d.domain,
+      status: d.status,
+      isPrimary: d.is_primary,
+      sslEnabled: d.ssl_enabled,
+      addedAt: d.created_at,
+      verifiedAt: d.verified_at ?? undefined,
+    }));
+    setSiteDomains((prev) => ({ ...prev, [siteId]: mapped }));
+  };
+
+  const handleToggleExpand = async (siteId: string) => {
+    const next = expandedSite === siteId ? null : siteId;
+    setExpandedSite(next);
+    if (next && !siteDomains[siteId]) await loadDomainsForSite(siteId);
+  };
 
   const handleAddDomain = async (siteId: string, domain: string) => {
+    if (isDbConfigured()) {
+      const created = await createSiteDomain(siteId, domain);
+      if (created) {
+        setSiteDomains((prev) => ({
+          ...prev,
+          [siteId]: [
+            ...(prev[siteId] || []),
+            {
+              id: created.id,
+              domain: created.domain,
+              status: created.status,
+              isPrimary: created.is_primary,
+              sslEnabled: created.ssl_enabled,
+              addedAt: created.created_at,
+            },
+          ],
+        }));
+        return;
+      }
+    }
     const newDomain: CustomDomain = {
       id: crypto.randomUUID(),
       domain,
@@ -61,6 +109,7 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
   };
 
   const handleRemoveDomain = async (siteId: string, domainId: string) => {
+    if (isDbConfigured()) await deleteSiteDomain(domainId);
     setSiteDomains((prev) => ({
       ...prev,
       [siteId]: (prev[siteId] || []).filter((d) => d.id !== domainId),
@@ -69,6 +118,7 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
   };
 
   const handleSetPrimary = async (siteId: string, domainId: string) => {
+    if (isDbConfigured()) await setPrimaryDomain(siteId, domainId);
     setSiteDomains((prev) => ({
       ...prev,
       [siteId]: (prev[siteId] || []).map((d) => ({ ...d, isPrimary: d.id === domainId })),
@@ -83,16 +133,67 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
         d.id === domainId ? { ...d, status: "verifying" as const } : d
       ),
     }));
-    // Simulate verification
-    setTimeout(() => {
+    if (isDbConfigured()) await updateSiteDomain(domainId, { status: "verifying" });
+    // Simulate verification (in production, poll DNS records server-side)
+    setTimeout(async () => {
+      const verifiedAt = new Date().toISOString();
+      if (isDbConfigured()) {
+        await updateSiteDomain(domainId, {
+          status: "active",
+          ssl_enabled: true,
+          verified_at: verifiedAt,
+        });
+      }
       setSiteDomains((prev) => ({
         ...prev,
         [siteId]: (prev[siteId] || []).map((d) =>
-          d.id === domainId ? { ...d, status: "active" as const, sslEnabled: true, verifiedAt: new Date().toISOString() } : d
+          d.id === domainId ? { ...d, status: "active" as const, sslEnabled: true, verifiedAt } : d
         ),
       }));
       toast.success("Domain verified and SSL provisioned!");
     }, 3000);
+  };
+
+  const handleRenewClick = (site: HostedSite) => {
+    if (Number(wallet.balance) < (selectedPlan?.price_gyds ?? 0.5)) {
+      // Use the site's own plan price if available, otherwise fall back
+      const plan = plans.find((p) => p.id === site.plan_id);
+      const price = plan?.price_gyds ?? 0.5;
+      if (Number(wallet.balance) < price) {
+        toast.error(`Insufficient GYDS. Need ${price} GYDS to renew`);
+        return;
+      }
+    }
+    setRenewSiteTarget(site);
+    setConfirmAction("renew");
+    setShowConfirm(true);
+  };
+
+  const handleRenewConfirm = async () => {
+    if (!renewSiteTarget) return;
+    const plan = plans.find((p) => p.id === renewSiteTarget.plan_id);
+    const price = plan?.price_gyds ?? 0.5;
+
+    if (isDbConfigured()) {
+      const updated = await renewSite(renewSiteTarget, wallet.address || "", price);
+      if (updated) {
+        setSites((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      }
+    } else {
+      // Local mock renewal
+      const now = new Date();
+      const base = renewSiteTarget.expires_at && new Date(renewSiteTarget.expires_at) > now
+        ? new Date(renewSiteTarget.expires_at)
+        : now;
+      const newExpiry = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      setSites((prev) =>
+        prev.map((s) =>
+          s.id === renewSiteTarget.id ? { ...s, expires_at: newExpiry, is_active: true } : s
+        )
+      );
+    }
+    toast.success(`${renewSiteTarget.site_name} renewed for 30 days`);
+    setRenewSiteTarget(null);
   };
 
   // Mock plans when DB not configured
@@ -266,6 +367,21 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
   };
 
   const confirmDetails = () => {
+    if (confirmAction === "renew" && renewSiteTarget) {
+      const plan = plans.find((p) => p.id === renewSiteTarget.plan_id);
+      const price = plan?.price_gyds ?? 0.5;
+      const currentExpiry = renewSiteTarget.expires_at ? new Date(renewSiteTarget.expires_at) : new Date();
+      const base = currentExpiry > new Date() ? currentExpiry : new Date();
+      const newExpiry = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+      return [
+        { label: "Action", value: "Renew Subscription" },
+        { label: "Site", value: renewSiteTarget.site_name },
+        { label: "Plan", value: plan?.name ?? "—" },
+        { label: "Extension", value: "+30 days" },
+        { label: "New Expiry", value: newExpiry.toLocaleDateString() },
+        { label: "Cost", value: `${price} GYDS` },
+      ];
+    }
     const action = confirmAction === "auto" ? "Auto-Generate Website" : confirmAction === "upload" ? "Upload Website" : "Create Website";
     return [
       { label: "Action", value: action },
@@ -277,6 +393,10 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
       ...(hostingType === "local" && localServerUrl ? [{ label: "Server URL", value: localServerUrl }] : []),
     ];
   };
+
+  const renewPrice = renewSiteTarget
+    ? plans.find((p) => p.id === renewSiteTarget.plan_id)?.price_gyds ?? 0.5
+    : 0;
 
   if (!wallet.isConnected) {
     return (
@@ -543,7 +663,12 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
                             <p className="text-xs text-destructive">
                               This site has expired. Renew your subscription to keep it active.
                             </p>
-                            <Button size="sm" variant="outline" className="mt-2 border-destructive/30 text-destructive hover:bg-destructive/10">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-2 border-destructive/30 text-destructive hover:bg-destructive/10"
+                              onClick={() => handleRenewClick(site)}
+                            >
                               <CreditCard className="w-3 h-3 mr-1" /> Renew
                             </Button>
                           </div>
@@ -552,7 +677,7 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
                         {/* Domain Management Toggle */}
                         <div className="mt-3 border-t border-border/20 pt-3">
                           <button
-                            onClick={() => setExpandedSite(expandedSite === site.id ? null : site.id)}
+                            onClick={() => handleToggleExpand(site.id)}
                             className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
                           >
                             <Globe className="w-3.5 h-3.5" />
@@ -586,12 +711,27 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
 
       <WalletConfirmDialog
         open={showConfirm}
-        onOpenChange={setShowConfirm}
-        title={confirmAction === "auto" ? "Auto-Generate Website" : confirmAction === "upload" ? "Deploy Website" : "Create Website"}
-        description="This will deploy your website to IPFS and charge the monthly hosting fee."
+        onOpenChange={(o) => {
+          setShowConfirm(o);
+          if (!o) setRenewSiteTarget(null);
+        }}
+        title={
+          confirmAction === "renew"
+            ? "Renew Hosting Subscription"
+            : confirmAction === "auto"
+            ? "Auto-Generate Website"
+            : confirmAction === "upload"
+            ? "Deploy Website"
+            : "Create Website"
+        }
+        description={
+          confirmAction === "renew"
+            ? "This will extend your hosting subscription by 30 days and charge the renewal fee in GYDS."
+            : "This will deploy your website to IPFS and charge the monthly hosting fee."
+        }
         details={confirmDetails()}
-        fee={`${selectedPlan?.price_gyds || 0} GYDS`}
-        onConfirm={handleConfirm}
+        fee={confirmAction === "renew" ? `${renewPrice} GYDS` : `${selectedPlan?.price_gyds || 0} GYDS`}
+        onConfirm={confirmAction === "renew" ? handleRenewConfirm : handleConfirm}
       />
     </div>
   );
