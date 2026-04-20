@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Shield, Users, Coins, Activity, Settings, BarChart3, AlertTriangle, Globe } from "lucide-react";
+import { Shield, Users, Coins, Activity, Settings, BarChart3, AlertTriangle, Globe, Droplets } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,30 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import type { DeployedToken, Transaction } from "@/lib/blockchain/types";
 import AdminHostingTab from "@/components/admin/AdminHostingTab";
-
-// Admin wallet addresses — loaded from VITE_ADMIN_WALLETS env var (comma-separated)
-// Falls back to default dev admin if not set
-const ADMIN_WALLETS: string[] = (() => {
-  const envWallets = import.meta.env.VITE_ADMIN_WALLETS;
-  if (envWallets && typeof envWallets === "string") {
-    return envWallets.split(",").map((w: string) => w.trim()).filter(Boolean);
-  }
-  return ["0x6422d12bfaddee5142bfad21b3006a74d09017b1", "0x7a3B...9f4E"]; // Default admins
-})();
-
-const isAdminWallet = (address: string | null): boolean => {
-  if (!address) return false;
-  return ADMIN_WALLETS.some((admin) => {
-    if (admin === address) return true;
-    // Match shortened against full: compare prefix and suffix
-    const shortMatch = admin.match(/^(0x[a-fA-F0-9]{4})\.{3}([a-fA-F0-9]{4})$/);
-    if (shortMatch) {
-      return address.toLowerCase().startsWith(shortMatch[1].toLowerCase()) &&
-             address.toLowerCase().endsWith(shortMatch[2].toLowerCase());
-    }
-    return address.toLowerCase() === admin.toLowerCase();
-  });
-};
+import AdminDexTab from "@/components/admin/AdminDexTab";
+import { isAdminWallet } from "@/lib/admin";
 
 interface AdminPageProps {
   tokens: DeployedToken[];
