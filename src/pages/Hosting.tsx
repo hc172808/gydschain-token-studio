@@ -711,12 +711,27 @@ const HostingPage = ({ wallet, onConnectWallet }: HostingPageProps) => {
 
       <WalletConfirmDialog
         open={showConfirm}
-        onOpenChange={setShowConfirm}
-        title={confirmAction === "auto" ? "Auto-Generate Website" : confirmAction === "upload" ? "Deploy Website" : "Create Website"}
-        description="This will deploy your website to IPFS and charge the monthly hosting fee."
+        onOpenChange={(o) => {
+          setShowConfirm(o);
+          if (!o) setRenewSiteTarget(null);
+        }}
+        title={
+          confirmAction === "renew"
+            ? "Renew Hosting Subscription"
+            : confirmAction === "auto"
+            ? "Auto-Generate Website"
+            : confirmAction === "upload"
+            ? "Deploy Website"
+            : "Create Website"
+        }
+        description={
+          confirmAction === "renew"
+            ? "This will extend your hosting subscription by 30 days and charge the renewal fee in GYDS."
+            : "This will deploy your website to IPFS and charge the monthly hosting fee."
+        }
         details={confirmDetails()}
-        fee={`${selectedPlan?.price_gyds || 0} GYDS`}
-        onConfirm={handleConfirm}
+        fee={confirmAction === "renew" ? `${renewPrice} GYDS` : `${selectedPlan?.price_gyds || 0} GYDS`}
+        onConfirm={confirmAction === "renew" ? handleRenewConfirm : handleConfirm}
       />
     </div>
   );
