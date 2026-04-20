@@ -24,6 +24,7 @@ import ProfilePage from "./pages/Profile";
 import AdminPage from "./pages/Admin";
 import HostingPage from "./pages/Hosting";
 import SiteEditorPage from "./pages/SiteEditor";
+import PoolTestPage from "./pages/PoolTest";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -160,6 +161,10 @@ const AppContent = () => {
               onConnectWallet={handleOpenWalletModal}
             />
           }
+        />
+        <Route
+          path="/pool-test"
+          element={<PoolTestPage wallet={wallet} onConnectWallet={handleOpenWalletModal} />}
         />
         <Route path="*" element={<NotFound />} />
       </Routes>
