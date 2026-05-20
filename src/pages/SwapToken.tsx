@@ -157,6 +157,8 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapToken
             </motion.div>
           )}
 
+          <DexNotDeployedGate />
+
           <div className="glass-card p-6 space-y-2">
             {/* From */}
             <div className="bg-muted/30 rounded-xl p-4">
