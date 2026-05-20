@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { scanFile } from "@/lib/virusScanner";
 
-// Polyfill File for jsdom (vitest setup already gives us File, but ensure)
+// jsdom's File doesn't implement arrayBuffer(); polyfill it.
 const makeFile = (bytes: Uint8Array | string, name: string, type: string): File => {
-  const blob = new Blob([typeof bytes === "string" ? bytes : (bytes as BlobPart)], { type });
-  return new File([blob], name, { type });
+  const data = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
+  const blob = new Blob([data as BlobPart], { type });
+  const f = new File([blob], name, { type });
+  if (typeof f.arrayBuffer !== "function") {
+    Object.defineProperty(f, "arrayBuffer", {
+      value: async () => data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength),
+    });
+  }
+  Object.defineProperty(f, "size", { value: data.byteLength, configurable: true });
+  return f;
 };
 
 const PNG_HEADER = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
