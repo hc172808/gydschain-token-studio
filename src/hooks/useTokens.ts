@@ -7,7 +7,6 @@ import {
   deployERC20,
   getTransactionReceipt,
   encodeBurnCall,
-  encodeSwapCall,
 } from "@/lib/blockchain/erc20Factory";
 import { sendTransaction } from "@/lib/blockchain/walletAdapter";
 import {
@@ -20,9 +19,15 @@ import {
   isDbConfigured,
 } from "@/lib/dbService";
 import { buildGPLTokenConfig } from "@/lib/blockchain/gplAuthority";
-
-// DEX router address on GydsChain
-const DEX_ROUTER_ADDRESS = "0x0000000000000000000000000000000000000002";
+import {
+  swapNativeForToken,
+  swapTokenForNative,
+  swapTokenForToken,
+  addLiquidityNative as routerAddLiquidityNative,
+  removeLiquidity as routerRemoveLiquidity,
+  getPairAddress,
+  toWei,
+} from "@/lib/blockchain/dexRouter";
 
 interface UseTokensOptions {
   provider?: EthereumProvider | null;
@@ -263,52 +268,101 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     return txHash;
   };
 
-  /** Swap tokens using DEX router contract */
+  /** Swap tokens via the real on-chain DEX router. Symbol "GYDS" = native. */
   const swapTokens = async (
     fromToken: string,
     toToken: string,
     amountIn: string,
     amountOutMin: string,
-    routerAddress = DEX_ROUTER_ADDRESS
   ): Promise<string> => {
     if (!walletAddress) throw new Error("Wallet not connected");
-    let txHash = "";
+    if (!provider) throw new Error("No wallet provider available");
 
-    if (provider && walletAddress) {
-      try {
-        const amountInWei = BigInt(Math.floor(Number(amountIn) * 1e18)).toString();
-        const amountOutMinWei = BigInt(Math.floor(Number(amountOutMin) * 1e18)).toString();
-        const deadline = Math.floor(Date.now() / 1000) + 1200;
+    const findAddr = (sym: string) =>
+      tokens.find((t) => t.symbol === sym)?.contractAddress;
 
-        const data = encodeSwapCall(
-          amountInWei,
-          amountOutMinWei,
-          [fromToken, toToken],
-          walletAddress,
-          deadline
-        );
+    const amountInWei = toWei(amountIn);
+    const minOutWei = toWei(amountOutMin);
 
-        toast.info("Please confirm the swap transaction in your wallet...");
-
-        txHash = await sendTransaction(provider, {
-          from: walletAddress,
-          to: routerAddress,
-          value: fromToken === "GYDS" ? `0x${BigInt(amountInWei).toString(16)}` : undefined,
-          data,
+    toast.info("Please confirm the swap in your wallet...");
+    let txHash: string;
+    try {
+      if (fromToken === "GYDS") {
+        const tokenAddr = findAddr(toToken);
+        if (!tokenAddr) throw new Error(`Unknown token ${toToken}`);
+        txHash = await swapNativeForToken({
+          provider, from: walletAddress, token: tokenAddr,
+          gydsIn: amountInWei, minTokenOut: minOutWei,
         });
-
-        toast.success("Swap transaction submitted!");
-        console.info(`[Swap] Completed via tx: ${txHash}`);
-      } catch (err) {
-        console.error("[Swap] Transaction failed:", err);
-        throw new Error("Swap transaction rejected or failed");
+      } else if (toToken === "GYDS") {
+        const tokenAddr = findAddr(fromToken);
+        if (!tokenAddr) throw new Error(`Unknown token ${fromToken}`);
+        txHash = await swapTokenForNative({
+          provider, from: walletAddress, token: tokenAddr,
+          tokenIn: amountInWei, minGydsOut: minOutWei,
+        });
+      } else {
+        const aIn = findAddr(fromToken);
+        const aOut = findAddr(toToken);
+        if (!aIn || !aOut) throw new Error("Unknown token");
+        txHash = await swapTokenForToken({
+          provider, from: walletAddress, tokenIn: aIn, tokenOut: aOut,
+          amountIn: amountInWei, minAmountOut: minOutWei,
+        });
       }
+      toast.success(`Swap submitted: ${txHash.slice(0, 10)}...`);
+      console.info(`[Swap] tx ${txHash}`);
+      return txHash;
+    } catch (err) {
+      console.error("[Swap] failed", err);
+      throw err instanceof Error ? err : new Error("Swap failed");
     }
+  };
 
-    if (!txHash) {
-      throw new Error("No wallet provider available. Please connect your wallet.");
-    }
+  /** Add liquidity (token + native GYDS) via the real router. */
+  const addLiquidity = async (
+    tokenAddress: string, tokenAmount: string, gydsAmount: string,
+  ): Promise<string> => {
+    if (!walletAddress || !provider) throw new Error("Wallet not connected");
+    const token = tokens.find((t) => t.contractAddress === tokenAddress);
+    const decimals = token?.decimals ?? 18;
+    toast.info("Please confirm — approval + add liquidity (2 txs)...");
+    const txHash = await routerAddLiquidityNative({
+      provider, from: walletAddress, token: tokenAddress,
+      tokenAmount: toWei(tokenAmount, decimals),
+      gydsAmount: toWei(gydsAmount),
+    });
+    toast.success(`Liquidity added: ${txHash.slice(0, 10)}...`);
+    return txHash;
+  };
 
+  /** Remove liquidity (token + native GYDS) via the real router. */
+  const removeLiquidity = async (
+    tokenAddress: string, percent: number,
+  ): Promise<string> => {
+    if (!walletAddress || !provider) throw new Error("Wallet not connected");
+    const dex = (await import("@/lib/blockchain/dexConfig")).getDexAddresses();
+    if (!dex) throw new Error("DEX is not deployed on this network.");
+    const pair = await getPairAddress(tokenAddress, dex.wgyds);
+    if (!pair) throw new Error("No pool exists for this token.");
+
+    // Read LP balance via eth_call balanceOf(walletAddress)
+    const { rpcCall } = await import("@/lib/blockchain/rpcClient");
+    const balData = "0x70a08231" + walletAddress.replace(/^0x/, "").padStart(64, "0");
+    const balHex = await rpcCall<string>({
+      method: "eth_call", params: [{ to: pair, data: balData }, "latest"],
+    });
+    const lpBalance = BigInt(balHex);
+    const liquidity = (lpBalance * BigInt(percent)) / 100n;
+    if (liquidity === 0n) throw new Error("No LP tokens to remove");
+
+    toast.info("Please confirm — approval + remove liquidity (2 txs)...");
+    const txHash = await routerRemoveLiquidity({
+      provider, from: walletAddress, pairAddress: pair,
+      tokenA: tokenAddress, tokenB: dex.wgyds,
+      liquidity, minA: 0n, minB: 0n,
+    });
+    toast.success(`Liquidity removed: ${txHash.slice(0, 10)}...`);
     return txHash;
   };
 
@@ -444,6 +498,8 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     deployToken,
     burnTokens,
     swapTokens,
+    addLiquidity,
+    removeLiquidity,
     transferTokens,
     updateTokenMetadata,
     isDeploying,

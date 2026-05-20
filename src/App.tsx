@@ -31,7 +31,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { wallet, connect, disconnect, isConnecting, getRawProvider, getFullAddress } = useWallet();
-  const { tokens, transactions, deployToken, burnTokens, swapTokens, transferTokens, updateTokenMetadata, isDeploying } = useTokens({
+  const { tokens, transactions, deployToken, burnTokens, swapTokens, addLiquidity, removeLiquidity, transferTokens, updateTokenMetadata, isDeploying } = useTokens({
     provider: getRawProvider(),
     walletAddress: getFullAddress(),
   });
@@ -88,7 +88,7 @@ const AppContent = () => {
         />
         <Route
           path="/liquidity"
-          element={<CreateLiquidityPage tokens={tokens} isWalletConnected={wallet.isConnected} onConnectWallet={handleOpenWalletModal} />}
+          element={<CreateLiquidityPage tokens={tokens} isWalletConnected={wallet.isConnected} onConnectWallet={handleOpenWalletModal} onAddLiquidity={addLiquidity} />}
         />
         <Route
           path="/swap"
@@ -103,7 +103,7 @@ const AppContent = () => {
         />
         <Route
           path="/remove-liquidity"
-          element={<RemoveLiquidityPage isWalletConnected={wallet.isConnected} onConnectWallet={handleOpenWalletModal} />}
+          element={<RemoveLiquidityPage isWalletConnected={wallet.isConnected} onConnectWallet={handleOpenWalletModal} onRemoveLiquidity={removeLiquidity} />}
         />
         <Route
           path="/burn"

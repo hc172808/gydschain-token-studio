@@ -68,11 +68,17 @@ const CreateTokenPage = ({ isWalletConnected, walletAddress, walletBalance = "0"
     telegram: "",
   });
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) { toast.error("Please upload a valid image file (PNG, JPG, etc.)"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
+    const { scanFile } = await import("@/lib/virusScanner");
+    const scan = await scanFile(file, { category: "image" });
+    if (!scan.safe) {
+      toast.error(`Upload blocked: ${scan.threats.join("; ")}`);
+      e.target.value = "";
+      return;
+    }
+    if (scan.warnings.length) toast.warning(scan.warnings.join("; "));
     setLogoFile(file);
     const url = URL.createObjectURL(file);
     setLogoPreview(url);
