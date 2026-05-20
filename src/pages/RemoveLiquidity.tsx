@@ -7,30 +7,36 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
+import { DexNotDeployedGate } from "@/components/DexNotDeployedGate";
 
 interface RemoveLiquidityPageProps {
   isWalletConnected: boolean;
   onConnectWallet: () => void;
+  onRemoveLiquidity?: (tokenAddress: string, percent: number) => Promise<string>;
 }
 
-const RemoveLiquidityPage = ({ isWalletConnected, onConnectWallet }: RemoveLiquidityPageProps) => {
-  const [poolAddress, setPoolAddress] = useState("");
+const RemoveLiquidityPage = ({ isWalletConnected, onConnectWallet, onRemoveLiquidity }: RemoveLiquidityPageProps) => {
+  const [tokenAddress, setTokenAddress] = useState("");
   const [removePercent, setRemovePercent] = useState([50]);
   const [isRemoving, setIsRemoving] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleRequestRemove = () => {
     if (!isWalletConnected) { onConnectWallet(); return; }
-    if (!poolAddress) { toast.error("Enter a pool address"); return; }
+    if (!tokenAddress) { toast.error("Enter the token address"); return; }
     setShowConfirm(true);
   };
 
   const handleRemove = async () => {
     setShowConfirm(false);
+    if (!onRemoveLiquidity) { toast.error("Liquidity handler unavailable"); return; }
     setIsRemoving(true);
-    await new Promise((r) => setTimeout(r, 2500));
+    try {
+      await onRemoveLiquidity(tokenAddress, removePercent[0]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove liquidity");
+    }
     setIsRemoving(false);
-    toast.success(`Removed ${removePercent[0]}% liquidity successfully!`);
   };
 
   if (!isWalletConnected) {
@@ -53,13 +59,15 @@ const RemoveLiquidityPage = ({ isWalletConnected, onConnectWallet }: RemoveLiqui
           <h1 className="text-3xl font-heading font-bold mb-2">
             Remove <span className="gradient-text">Liquidity</span>
           </h1>
-          <p className="text-muted-foreground mb-8">Withdraw your liquidity from a pool</p>
+          <p className="text-muted-foreground mb-8">Withdraw your liquidity from a token-GYDS pool</p>
+
+          <DexNotDeployedGate />
 
           <div className="glass-card p-6 space-y-6">
             <div>
-              <Label>Pool Address</Label>
-              <Input value={poolAddress} onChange={(e) => setPoolAddress(e.target.value)} placeholder="Enter pool / pair address" className="mt-1.5 bg-muted/50 border-border/50 font-mono text-sm" />
-              <p className="text-xs text-muted-foreground mt-1">The pair address listed on your token's explorer page</p>
+              <Label>Token Address</Label>
+              <Input value={tokenAddress} onChange={(e) => setTokenAddress(e.target.value)} placeholder="0x... (token paired with GYDS)" className="mt-1.5 bg-muted/50 border-border/50 font-mono text-sm" />
+              <p className="text-xs text-muted-foreground mt-1">Enter the token address — the router resolves the GYDS pair automatically.</p>
             </div>
 
             <div>
@@ -77,21 +85,12 @@ const RemoveLiquidityPage = ({ isWalletConnected, onConnectWallet }: RemoveLiqui
               </div>
             </div>
 
-            {/* Estimated return */}
-            {poolAddress && (
-              <div className="bg-muted/30 rounded-xl p-4 space-y-2 text-sm">
-                <p className="text-muted-foreground text-xs mb-2">Estimated return</p>
-                <div className="flex justify-between"><span>Token A</span><span className="font-medium">~{(500000 * removePercent[0] / 100).toLocaleString()} tokens</span></div>
-                <div className="flex justify-between"><span>GYDS</span><span className="font-medium">~{(10 * removePercent[0] / 100).toFixed(2)} GYDS</span></div>
-              </div>
-            )}
-
             <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 text-sm text-warning flex gap-2">
               <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>Removing liquidity may result in impermanent loss. Cost: 0.1 GYDS. For full withdrawal, use MAX.</span>
+              <span>Removing liquidity may result in impermanent loss. Cost: gas + 0.1 GYDS protocol fee.</span>
             </div>
 
-            <Button onClick={handleRequestRemove} disabled={isRemoving || !poolAddress} className="w-full btn-gradient">
+            <Button onClick={handleRequestRemove} disabled={isRemoving || !tokenAddress} className="w-full btn-gradient">
               {isRemoving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Removing...</> : <>
                 <Minus className="w-4 h-4 mr-2" />Remove Liquidity
               </>}
@@ -105,7 +104,7 @@ const RemoveLiquidityPage = ({ isWalletConnected, onConnectWallet }: RemoveLiqui
             title="Remove Liquidity"
             description="You are about to withdraw liquidity from this pool."
             details={[
-              { label: "Pool", value: `${poolAddress.slice(0, 10)}...` },
+              { label: "Token", value: `${tokenAddress.slice(0, 10)}...` },
               { label: "Remove", value: `${removePercent[0]}%` },
             ]}
             fee="0.1"

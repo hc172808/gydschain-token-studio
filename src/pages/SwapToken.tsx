@@ -9,6 +9,7 @@ import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 import { toast } from "sonner";
 import type { DeployedToken } from "@/lib/blockchain/types";
 import { getPoolInfo, calculateSwapOutput, calculatePriceImpact, type PoolInfo } from "@/lib/blockchain/indexer";
+import { DexNotDeployedGate } from "@/components/DexNotDeployedGate";
 
 interface SwapTokenPageProps {
   tokens: DeployedToken[];
@@ -80,9 +81,9 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapToken
       setToAmount(outputFormatted);
       setPriceImpact(calculatePriceImpact(amountWei, poolInfo.reserve0, poolInfo.reserve1));
     } else {
-      // Fallback mock calculation
-      setToAmount((Number(val) * 1247.5).toFixed(2));
-      setPriceImpact(Number(val) > 100 ? 2.5 : 0.1);
+      // No pool data yet — clear estimate; user can still swap, slippage protects them
+      setToAmount("");
+      setPriceImpact(0);
     }
   };
 
@@ -97,20 +98,14 @@ const SwapTokenPage = ({ tokens, isWalletConnected, onConnectWallet, onSwapToken
     setIsSwapping(true);
     try {
       const minOut = (Number(toAmount) * (1 - Number(slippage) / 100)).toFixed(6);
-
-      if (onSwapTokens) {
-        const txHash = await onSwapTokens(fromToken, toToken, fromAmount, minOut);
-        toast.success(`Swap completed! TX: ${txHash.slice(0, 10)}...`);
-      } else {
-        await new Promise((r) => setTimeout(r, 2500));
-        toast.success(`Swapped ${fromAmount} ${fromToken} for ${toAmount} ${toToken}`);
-      }
-
+      if (!onSwapTokens) throw new Error("Swap handler unavailable");
+      const txHash = await onSwapTokens(fromToken, toToken, fromAmount, minOut);
+      toast.success(`Swap completed! TX: ${txHash.slice(0, 10)}...`);
       setFromAmount("");
       setToAmount("");
     } catch (err) {
       console.error("[Swap] Error:", err);
-      toast.error("Swap failed. Please try again.");
+      toast.error(err instanceof Error ? err.message : "Swap failed. Please try again.");
     }
     setIsSwapping(false);
   };

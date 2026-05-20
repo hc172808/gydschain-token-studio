@@ -11,11 +11,13 @@ import { activeConfig } from "@/lib/blockchain/config";
 import { WalletConfirmDialog } from "@/components/WalletConfirmDialog";
 import type { DeployedToken } from "@/lib/blockchain/types";
 import { getPoolInfo, type PoolInfo } from "@/lib/blockchain/indexer";
+import { DexNotDeployedGate } from "@/components/DexNotDeployedGate";
 
 interface CreateLiquidityPageProps {
   tokens: DeployedToken[];
   isWalletConnected: boolean;
   onConnectWallet: () => void;
+  onAddLiquidity?: (tokenAddress: string, tokenAmount: string, gydsAmount: string) => Promise<string>;
 }
 
 const FEE_OPTIONS = [
@@ -25,7 +27,7 @@ const FEE_OPTIONS = [
   { value: "1.00", label: "1.00%" },
 ];
 
-const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: CreateLiquidityPageProps) => {
+const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet, onAddLiquidity }: CreateLiquidityPageProps) => {
   const [selectedToken, setSelectedToken] = useState("");
   const [tokenAmount, setTokenAmount] = useState("");
   const [gydsAmount, setGydsAmount] = useState("");
@@ -80,10 +82,14 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
 
   const handleCreate = async () => {
     setShowConfirm(false);
+    if (!onAddLiquidity) { toast.error("Liquidity handler unavailable"); return; }
     setIsCreating(true);
-    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      await onAddLiquidity(selectedToken, tokenAmount, gydsAmount);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create pool");
+    }
     setIsCreating(false);
-    toast.success("Liquidity pool created successfully!");
   };
 
   if (!isWalletConnected) {
@@ -107,6 +113,8 @@ const CreateLiquidityPage = ({ tokens, isWalletConnected, onConnectWallet }: Cre
             Create <span className="gradient-text">Liquidity Pool</span>
           </h1>
           <p className="text-muted-foreground mb-8">Initialize a CPMM or AMM v4 pool on {activeConfig.networkName}</p>
+
+          <DexNotDeployedGate />
 
           <div className="glass-card p-6 space-y-6">
             {/* Pool Type */}
