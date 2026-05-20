@@ -168,12 +168,18 @@ const SiteEditorPage = ({ wallet, onConnectWallet }: SiteEditorProps) => {
     input.accept = ".html,.htm";
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const text = await file.text();
-        setHtmlCode(text);
-        pushHistory(text);
-        toast.success(`Loaded ${file.name}`);
+      if (!file) return;
+      const { scanFile } = await import("@/lib/virusScanner");
+      const scan = await scanFile(file, { category: "html" });
+      if (!scan.safe) {
+        toast.error(`Upload blocked: ${scan.threats.join("; ")}`);
+        return;
       }
+      if (scan.warnings.length) toast.warning(scan.warnings.join("; "));
+      const text = await file.text();
+      setHtmlCode(text);
+      pushHistory(text);
+      toast.success(`Loaded ${file.name}`);
     };
     input.click();
   };
