@@ -498,6 +498,8 @@ export const useTokens = (options: UseTokensOptions = {}) => {
     deployToken,
     burnTokens,
     swapTokens,
+    addLiquidity,
+    removeLiquidity,
     transferTokens,
     updateTokenMetadata,
     isDeploying,
