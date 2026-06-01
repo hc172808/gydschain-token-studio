@@ -14,7 +14,6 @@ const padAddr = (a: string) => a.replace(/^0x/, "").toLowerCase().padStart(64, "
 const padU256 = (v: bigint) => v.toString(16).padStart(64, "0");
 
 const encodeUint = (sel: string, v: bigint) => `${sel}${padU256(v)}`;
-const encodeAddr = (sel: string, a: string) => `${sel}${padAddr(a)}`;
 
 export interface StakeParams {
   provider: EthereumProvider;
@@ -26,10 +25,11 @@ export interface StakeParams {
 }
 
 export const approveAndStake = async (p: StakeParams): Promise<string[]> => {
-  const amount = toWei(p.amount, p.decimals ?? 18);
-  const approveData = encodeApproveCall(p.stakingContract, amount);
+  const decimals = p.decimals ?? 18;
+  const approveData = encodeApproveCall(p.stakingContract, p.amount, decimals);
   const approveTx = await sendTransaction(p.provider, { from: p.user, to: p.stakingToken, data: approveData });
-  const stakeTx = await sendTransaction(p.provider, { from: p.user, to: p.stakingContract, data: encodeUint(SEL_STAKE, amount) });
+  const amountWei = toWei(p.amount, decimals);
+  const stakeTx = await sendTransaction(p.provider, { from: p.user, to: p.stakingContract, data: encodeUint(SEL_STAKE, amountWei) });
   return [approveTx, stakeTx];
 };
 
@@ -40,11 +40,11 @@ export const claimRewards = async (p: { provider: EthereumProvider; user: string
   sendTransaction(p.provider, { from: p.user, to: p.stakingContract, data: SEL_GET_REWARD });
 
 export const readEarned = async (contract: string, user: string): Promise<bigint> => {
-  const res = await rpcCall<string>("eth_call", [{ to: contract, data: `${SEL_EARNED}${padAddr(user)}` }, "latest"]);
+  const res = await rpcCall<string>({ method: "eth_call", params: [{ to: contract, data: `${SEL_EARNED}${padAddr(user)}` }, "latest"] });
   return BigInt(res || "0x0");
 };
 
 export const readStakedBalance = async (contract: string, user: string): Promise<bigint> => {
-  const res = await rpcCall<string>("eth_call", [{ to: contract, data: `${SEL_BALANCE_OF}${padAddr(user)}` }, "latest"]);
+  const res = await rpcCall<string>({ method: "eth_call", params: [{ to: contract, data: `${SEL_BALANCE_OF}${padAddr(user)}` }, "latest"] });
   return BigInt(res || "0x0");
 };

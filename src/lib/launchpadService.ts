@@ -14,7 +14,8 @@ export interface Presale {
 
 export interface PresaleContribution {
   id: string; presale_id: string; contributor_address: string;
-  amount_gyds: string; tokens_owed: string; tokens_claimed: string; refunded: boolean;
+  amount_gyds: string; tokens_owed: string; tokens_claimed: string;
+  refunded: boolean; tx_hash?: string | null;
 }
 
 export const fetchPresales = async (network = "devnet"): Promise<Presale[]> => {
