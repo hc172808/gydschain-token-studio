@@ -25,6 +25,14 @@ import AdminPage from "./pages/Admin";
 import HostingPage from "./pages/Hosting";
 import SiteEditorPage from "./pages/SiteEditor";
 import PoolTestPage from "./pages/PoolTest";
+import NotificationsPage from "./pages/Notifications";
+import StakingPage from "./pages/Staking";
+import GovernancePage from "./pages/Governance";
+import ProposalDetail from "./pages/ProposalDetail";
+import LaunchpadPage from "./pages/Launchpad";
+import LaunchpadCreate from "./pages/LaunchpadCreate";
+import PresaleDetail from "./pages/PresaleDetail";
+import OfflinePage from "./pages/Offline";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -166,6 +174,14 @@ const AppContent = () => {
           path="/pool-test"
           element={<PoolTestPage wallet={wallet} onConnectWallet={handleOpenWalletModal} />}
         />
+        <Route path="/notifications" element={<NotificationsPage wallet={wallet} onConnectWallet={handleOpenWalletModal} />} />
+        <Route path="/staking" element={<StakingPage wallet={wallet} onConnectWallet={handleOpenWalletModal} />} />
+        <Route path="/governance" element={<GovernancePage wallet={wallet} onConnectWallet={handleOpenWalletModal} />} />
+        <Route path="/governance/:proposalId" element={<ProposalDetail wallet={wallet} onConnectWallet={handleOpenWalletModal} />} />
+        <Route path="/launchpad" element={<LaunchpadPage wallet={wallet} onConnectWallet={handleOpenWalletModal} />} />
+        <Route path="/launchpad/create" element={<LaunchpadCreate wallet={wallet} />} />
+        <Route path="/launchpad/:id" element={<PresaleDetail wallet={wallet} onConnectWallet={handleOpenWalletModal} />} />
+        <Route path="/offline" element={<OfflinePage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>
