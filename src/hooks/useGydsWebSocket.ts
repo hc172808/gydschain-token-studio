@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getActiveConfig } from "@/lib/blockchain/config";
 import { rpcCall } from "@/lib/blockchain/rpcClient";
+import { gydsLitenode } from "@/lib/gydsLitenode";
 import { toast } from "sonner";
 
 export interface BlockUpdate {

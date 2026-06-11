@@ -16,8 +16,10 @@ export interface ChainConfig {
   };
 }
 
+export const GYDS_CHAIN_ID = 13370;
+
 export const DEVNET_CONFIG: ChainConfig = {
-  networkName: "GydsChain Devnet",
+  networkName: "GYDS Chain",
   rpcUrl: "https://rpc.netlifegy.com",
   rpcFallbacks: [
     "https://rpc2.netlifegy.com",
@@ -25,8 +27,8 @@ export const DEVNET_CONFIG: ChainConfig = {
     "https://localhost:8546",
     "https://192.168.18.106:8546",
   ],
-  chainId: 12345,
-  explorerUrl: "https://explorer.gydschain.net",
+  chainId: GYDS_CHAIN_ID,
+  explorerUrl: "https://explorer.netlifegy.com",
   indexerUrl: "https://rpc.netlifegy.com",
   nativeCurrency: {
     name: "GYDS",
@@ -40,14 +42,14 @@ export const DEVNET_CONFIG: ChainConfig = {
 };
 
 export const MAINNET_CONFIG: ChainConfig = {
-  networkName: "GydsChain Mainnet",
+  networkName: "GYDS Chain",
   rpcUrl: "https://rpc.netlifegy.com",
   rpcFallbacks: [
     "https://rpc2.netlifegy.com",
     "https://rpc3.netlifegy.com",
   ],
-  chainId: 12346,
-  explorerUrl: "https://explorer.gydschain.net",
+  chainId: GYDS_CHAIN_ID,
+  explorerUrl: "https://explorer.netlifegy.com",
   indexerUrl: "https://rpc.netlifegy.com",
   nativeCurrency: {
     name: "GYDS",
@@ -60,7 +62,7 @@ export const MAINNET_CONFIG: ChainConfig = {
   },
 };
 
-export const activeConfig: ChainConfig = DEVNET_CONFIG;
+export const activeConfig: ChainConfig = MAINNET_CONFIG;
 
 /** Get the currently active config (respects network switching) */
 export const getActiveConfig = (): ChainConfig => {

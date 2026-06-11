@@ -4,7 +4,7 @@ import { DEVNET_CONFIG, MAINNET_CONFIG, type ChainConfig } from "./config";
 type NetworkChangeListener = (config: ChainConfig) => void;
 const listeners: NetworkChangeListener[] = [];
 
-let currentConfig: ChainConfig = DEVNET_CONFIG;
+let currentConfig: ChainConfig = MAINNET_CONFIG;
 
 // Set global reference for getActiveConfig in config.ts (avoids circular dep)
 (globalThis as Record<string, unknown>).__gydsCurrentConfig = currentConfig;
