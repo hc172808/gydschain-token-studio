@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Wallet, ChevronRight, Loader2, Plus, Key, AlertTriangle } from "lucide-react";
+import { Wallet, ChevronRight, Loader2, Key, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,15 +27,13 @@ interface WalletModalProps {
   onOpenChange: (open: boolean) => void;
   onConnect: (walletType: string) => void;
   onImportWallet?: (privateKey: string) => void;
-  onCreateWallet?: () => void;
   isConnecting: boolean;
   connectingWallet: string | null;
 }
 
-export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, onCreateWallet, isConnecting, connectingWallet }: WalletModalProps) => {
+export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, isConnecting, connectingWallet }: WalletModalProps) => {
   const [activeTab, setActiveTab] = useState<string>("connect");
   const [importKey, setImportKey] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
 
   const handleImport = () => {
     if (!importKey.trim()) {
@@ -48,15 +46,6 @@ export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, onC
     }
     onImportWallet?.(importKey);
     setImportKey("");
-  };
-
-  const handleCreate = async () => {
-    setIsCreating(true);
-    try {
-      onCreateWallet?.();
-    } finally {
-      setIsCreating(false);
-    }
   };
 
   return (
@@ -78,7 +67,7 @@ export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, onC
           <TabsList className="w-full bg-muted/30 h-9">
             <TabsTrigger value="connect" className="flex-1 text-xs">Connect</TabsTrigger>
             <TabsTrigger value="import" className="flex-1 text-xs">Import</TabsTrigger>
-            <TabsTrigger value="create" className="flex-1 text-xs">Create New</TabsTrigger>
+            
           </TabsList>
 
           {/* Connect existing wallet */}
@@ -139,30 +128,6 @@ export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, onC
             </Button>
           </TabsContent>
 
-          {/* Create new wallet */}
-          <TabsContent value="create" className="mt-3 space-y-4 pb-2">
-            <div className="bg-muted/30 rounded-xl p-5 text-center space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-                <Plus className="w-8 h-8 text-primary" />
-              </div>
-              <h4 className="font-heading font-semibold">Create New Wallet</h4>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Generate a brand new GydsChain wallet. You'll receive a private key and address.
-                <strong className="text-foreground block mt-1">Save your private key securely — it cannot be recovered!</strong>
-              </p>
-            </div>
-            <Button
-              onClick={handleCreate}
-              disabled={isCreating}
-              className="w-full btn-gradient gap-2"
-            >
-              {isCreating ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
-              ) : (
-                <><Plus className="w-4 h-4" /> Generate New Wallet</>
-              )}
-            </Button>
-          </TabsContent>
         </Tabs>
 
         <div className="px-6 pb-5 pt-2">
