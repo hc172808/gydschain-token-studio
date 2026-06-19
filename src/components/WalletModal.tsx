@@ -128,30 +128,6 @@ export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, isC
             </Button>
           </TabsContent>
 
-          {/* Create new wallet */}
-          <TabsContent value="create" className="mt-3 space-y-4 pb-2">
-            <div className="bg-muted/30 rounded-xl p-5 text-center space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-                <Plus className="w-8 h-8 text-primary" />
-              </div>
-              <h4 className="font-heading font-semibold">Create New Wallet</h4>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Generate a brand new GydsChain wallet. You'll receive a private key and address.
-                <strong className="text-foreground block mt-1">Save your private key securely — it cannot be recovered!</strong>
-              </p>
-            </div>
-            <Button
-              onClick={handleCreate}
-              disabled={isCreating}
-              className="w-full btn-gradient gap-2"
-            >
-              {isCreating ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
-              ) : (
-                <><Plus className="w-4 h-4" /> Generate New Wallet</>
-              )}
-            </Button>
-          </TabsContent>
         </Tabs>
 
         <div className="px-6 pb-5 pt-2">
