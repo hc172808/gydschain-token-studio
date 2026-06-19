@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline — Netlify Coin Tools</title>
+    <meta name="theme-color" content="#2563eb" />
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; background: #0b1020; color: #e6edf7; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      .wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; }
+      .card { max-width: 420px; text-align: center; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 28px; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      p { margin: 8px 0 20px; color: #9aa6bf; font-size: 14px; line-height: 1.5; }
+      button { background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; border: 0; border-radius: 10px; padding: 10px 18px; font-weight: 600; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>You're offline</h1>
+        <p>Netlify Coin Tools can't reach the network right now. Reconnect and try again.</p>
+        <button onclick="location.reload()">Retry</button>
+      </div>
+    </div>
+  </body>
+</html>
