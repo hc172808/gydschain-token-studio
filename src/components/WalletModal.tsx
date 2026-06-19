@@ -67,7 +67,7 @@ export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, isC
           <TabsList className="w-full bg-muted/30 h-9">
             <TabsTrigger value="connect" className="flex-1 text-xs">Connect</TabsTrigger>
             <TabsTrigger value="import" className="flex-1 text-xs">Import</TabsTrigger>
-            <TabsTrigger value="create" className="flex-1 text-xs">Create New</TabsTrigger>
+            
           </TabsList>
 
           {/* Connect existing wallet */}
