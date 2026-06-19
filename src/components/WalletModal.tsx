@@ -27,15 +27,13 @@ interface WalletModalProps {
   onOpenChange: (open: boolean) => void;
   onConnect: (walletType: string) => void;
   onImportWallet?: (privateKey: string) => void;
-  onCreateWallet?: () => void;
   isConnecting: boolean;
   connectingWallet: string | null;
 }
 
-export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, onCreateWallet, isConnecting, connectingWallet }: WalletModalProps) => {
+export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, isConnecting, connectingWallet }: WalletModalProps) => {
   const [activeTab, setActiveTab] = useState<string>("connect");
   const [importKey, setImportKey] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
 
   const handleImport = () => {
     if (!importKey.trim()) {
@@ -48,15 +46,6 @@ export const WalletModal = ({ open, onOpenChange, onConnect, onImportWallet, onC
     }
     onImportWallet?.(importKey);
     setImportKey("");
-  };
-
-  const handleCreate = async () => {
-    setIsCreating(true);
-    try {
-      onCreateWallet?.();
-    } finally {
-      setIsCreating(false);
-    }
   };
 
   return (
