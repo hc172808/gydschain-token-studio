@@ -40,7 +40,7 @@ export default defineConfig(({ mode }) => ({
             urlPattern: ({ url, request }) =>
               url.origin === self.location.origin &&
               /\.(?:js|css|woff2|svg|png|jpg|jpeg|webp|ico)$/.test(url.pathname) &&
-              request.destination !== "document",
+              (request as Request).destination !== "document",
             handler: "CacheFirst",
             options: {
               cacheName: "static-assets",
