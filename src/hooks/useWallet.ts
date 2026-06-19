@@ -64,65 +64,66 @@ export const useWallet = () => {
     }
   }, []);
 
-  /** Connect wallet */
+  /** Connect wallet — real provider only, no mocks */
   const connect = useCallback(async (walletType: string) => {
     setIsConnecting(true);
 
     try {
       const provider = getProvider(walletType);
 
-      if (provider) {
-        // Real wallet connection
-        providerRef.current = provider;
-
-        // Switch to GydsChain network
-        try {
-          await switchToGydsChain(provider);
-        } catch (err) {
-          console.warn("[Wallet] Network switch failed, continuing:", err);
-        }
-
-        const accounts = await requestAccounts(provider);
-        if (accounts.length === 0) throw new Error("No accounts returned");
-
-        const address = accounts[0];
-        const shortAddr = shortenAddress(address);
-
-        setWallet({
-          address: shortAddr,
-          balance: "0.00",
-          isConnected: true,
-          networkName: activeConfig.networkName,
+      if (!provider) {
+        // No injected provider — guide user to install
+        const installUrls: Record<string, string> = {
+          phantom: "https://phantom.app/download",
+          solflare: "https://solflare.com/download",
+          backpack: "https://backpack.app/downloads",
+          "gyds-wallet": "https://netlifegy.com/wallet",
+        };
+        const url = installUrls[walletType] ?? installUrls["gyds-wallet"];
+        const { toast } = await import("sonner");
+        toast.error(`${walletType} wallet not detected`, {
+          description: "Install the wallet extension or open this site inside the wallet's in-app browser.",
+          action: { label: "Install", onClick: () => window.open(url, "_blank", "noopener,noreferrer") },
         });
-
-        // Fetch real balance
-        await fetchBalance(address);
-
-        // Store full address for polling
-        (providerRef.current as EthereumProvider & { _fullAddress?: string })._fullAddress = address;
-
-        console.info(`[Wallet] Connected via ${walletType}: ${shortAddr}`);
-      } else {
-        // No provider found — fallback to mock for development
-        console.warn(`[Wallet] No provider found for ${walletType}, using mock`);
-        await new Promise((r) => setTimeout(r, 1500));
-
-        setWallet({
-          address: "0x7a3B...9f4E",
-          balance: "142.58",
-          isConnected: true,
-          networkName: activeConfig.networkName,
-        });
-        setRpcStatus("offline");
+        throw new Error(`No provider for ${walletType}`);
       }
+
+      providerRef.current = provider;
+
+      // Switch to GydsChain network
+      try {
+        await switchToGydsChain(provider);
+      } catch (err) {
+        console.warn("[Wallet] Network switch failed, continuing:", err);
+      }
+
+      const accounts = await requestAccounts(provider);
+      if (accounts.length === 0) throw new Error("No accounts returned from wallet");
+
+      const address = accounts[0];
+      const shortAddr = shortenAddress(address);
+
+      setWallet({
+        address: shortAddr,
+        balance: "0.00",
+        isConnected: true,
+        networkName: activeConfig.networkName,
+      });
+
+      // Store full address for polling
+      (providerRef.current as EthereumProvider & { _fullAddress?: string })._fullAddress = address;
+
+      // Fetch real balance
+      await fetchBalance(address);
+
+      console.info(`[Wallet] Connected via ${walletType}: ${shortAddr}`);
     } catch (err) {
       console.error("[Wallet] Connection failed:", err);
-      // Fallback to mock
-      await new Promise((r) => setTimeout(r, 500));
+      providerRef.current = null;
       setWallet({
-        address: "0x7a3B...9f4E",
-        balance: "142.58",
-        isConnected: true,
+        address: null,
+        balance: "0",
+        isConnected: false,
         networkName: activeConfig.networkName,
       });
       setRpcStatus("offline");
